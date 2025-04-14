@@ -24,6 +24,12 @@ $obj = $request.Body
 # Correct improperly formatted 'names' and 'addresses' properties in the new and changed asset arrays
 # and convert the asset objects back to JSON to send to the Log Analytics Data Connector API
 
+Write-Host "[+] Sending new asset payload to Log Analytics:"
+Write-Host $new_assets
+
+Write-Host "[+] Sending changed asset payload to Log Analytics:"
+Write-Host $changed_assets
+
 if ($obj.new -ne 0){
     foreach ($asset in $obj.'new_assets'){
         $asset.addresses = $asset.addresses -replace '\[' -replace '\]' -split ' '
