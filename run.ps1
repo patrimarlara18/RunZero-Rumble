@@ -1,63 +1,41 @@
 using namespace System.Net
 
 # Input bindings are passed in via param block.
-param($request, $TriggerMetadata)
+param($timer)
+
+# Check if the current function invocation is running later than scheduled
+if ($timer.IsPastDue) {
+    Write-Host "[-] PowerShell timer is running late"
+}
 
 # Log the function start time
 $currentUTCtime = (Get-Date).ToUniversalTime()
-Write-Host "[+] PowerShell HTTP trigger function processed a POST request at: $currentUTCtime"
+Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
 
 # Get environment variables from the Azure Functions app
+$rumbleApiKey = $ENV:rumbleApiKey
 $workspaceId = $ENV:workspaceId
 $workspaceKey = $ENV:workspaceKey
 
+# Rumble assets export URI
+$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products'
+
 # Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
-$logType = "RumbleAlerts"
+$logType = "RumbleAssets" 
 
 # Optional value that specifies the name of the field denoting the time the data was generated
 # If unspecified, the Log Analytics Data Connector API assumes it was generated at ingestion time
 $timeGeneratedField = ""
 
-# Fetch the JSON content in the body of the HTTP POST request sent from Rumble via a webhook
-$obj = $request.Body
-
-Write-Host $obj
-
-# Log the raw new assets received from Rumble (útil para debug)
-Write-Host "Raw new assets: $($obj.new_assets | Out-String)"
-
-# Procesar activos nuevos (si los hay)
-if ($obj.new -ne 0){
-    foreach ($asset in $obj.'new_assets'){
-        # Limpiar formato de direcciones y nombres (elimina corchetes y separa por espacios)
-        $asset.addresses = $asset.addresses -replace '\[' -replace '\]' -split ' '
-        $asset.names = $asset.names -replace '\[' -replace '\]' -split ' '
-        # Añadir campo que indica el tipo de evento
-        $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'new-assets-found'
-    }
-
-    # Convertir los activos procesados a JSON
-    $new_assets = @($obj.new_assets) | ConvertTo-Json -Depth 5
-    Write-Host "[+] Sending new asset payload to Log Analytics:"
-    Write-Host $new_assets
+# Fetch asset information from the Rumble API
+$headers = @{
+    Accept = 'application/json'
+    Authorization = "Bearer $rumbleApiKey"
 }
+$response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop
+Write-Host "[+] Fetched asset information from the Rumble API"
 
-# Procesar activos modificados (si los hay)
-if ($obj.changed -ne 0){
-    foreach ($asset in $obj.'changed_assets'){
-        $asset.addresses = $asset.addresses -replace '\[' -replace '\]' -split ' '
-        $asset.names = $asset.names -replace '\[' -replace '\]' -split ' '
-        $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'assets-changed'
-    }
-
-    $changed_assets = @($obj.changed_assets) | ConvertTo-Json -Depth 5
-    Write-Host "[+] Sending changed asset payload to Log Analytics:"
-    Write-Host $changed_assets
-}
-
-Write-Host "[+] Fetched new and changed information from Rumble alerts webhook"
-
-# Función para construir la firma de autenticación HMAC requerida por la API de Azure Log Analytics
+# Helper function to build the authorization signature for the Log Analytics Data Connector API
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
 {
     $xHeaders = "x-ms-date:" + $date
@@ -74,7 +52,7 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     return $authorization
 }
 
-# Función para enviar datos a Azure Log Analytics mediante POST
+# Helper function to build and invoke a POST request to the Log Analytics Data Connector API
 Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 {
     $method = "POST"
@@ -90,8 +68,8 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
         -method $method `
         -contentType $contentType `
         -resource $resource
-
-    $uri = "https://$customerId.ods.opinsights.azure.com/api/logs?api-version=2016-04-01"
+    
+    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
     $headers = @{
         "Authorization" = $signature;
         "Log-Type" = $logType;
@@ -103,30 +81,17 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     return $response.StatusCode
 }
 
-# Enviar activos nuevos si existen
-if ($obj.new -ne 0 -and $new_assets){
-    Write-Host "[+] Sending new asset payload to Log Analytics:"
-    Write-Host $new_assets
+# Convert the Rumble Asset information to JSON
+$json = $response | ConvertTo-Json -Depth 3
 
-    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $new_assets -logType $logType
-    if ($statusCode -eq 200){
-        Write-Host "[+] (New Assets) Successfully sent POST request to the Log Analytics API"
-    } else {
-        Write-Host "[-] (New Assets) Failed to send POST request to the Log Analytics API with status code: $statusCode"
-    }
-}
+# POST the Rumble asset information to the Log Analytics Data Connector API
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body ([System.Text.Encoding]::UTF8.GetBytes($json)) -logType $logType
 
-# Enviar activos modificados si existen
-if ($obj.changed -ne 0 -and $changed_assets){
-    Write-Host "[+] Sending changed asset payload to Log Analytics:"
-    Write-Host $changed_assets
-
-    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $changed_assets -logType $logType
-    if ($statusCode -eq 200){
-        Write-Host "[+] (Changed Assets) Successfully sent POST request to the Log Analytics API"
-    } else {
-        Write-Host "[-] (Changed Assets) Failed to send POST request to the Log Analytics API with status code: $statusCode"
-    }
+# Check the status of the POST request
+if ($statusCode -eq 200){
+    Write-Host "[+] Successfully sent POST request to the Log Analytics API"
+} else {
+    Write-Host "[-] Failed to send POST request to the Log Analytics API with status code: $statusCode"
 }
 
 # Log the function end time
