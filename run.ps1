@@ -30,8 +30,8 @@ Write-Host "Raw new assets: $($obj.new_assets | Out-String)"
 if ($obj.new -ne 0){
     foreach ($asset in $obj.'new_assets'){
         # Limpiar formato de direcciones y nombres (elimina corchetes y separa por espacios)
-        $asset.addresses = $asset.addresses -replace '\[' -replace '\]' -split ' '
-        $asset.names = $asset.names -replace '\[' -replace '\]' -split ' '
+        $asset.addresses = (ConvertFrom-Json $asset.addresses)
+        $asset.names = (ConvertFrom-Json $asset.names)
         # Añadir campo que indica el tipo de evento
         $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'new-assets-found'
     }
