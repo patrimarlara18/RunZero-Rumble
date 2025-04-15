@@ -21,6 +21,8 @@ $timeGeneratedField = ""
 # Fetch the JSON content in the body of the HTTP POST request sent from Rumble via a webhook
 $obj = $request.Body
 
+Write-Host $obj
+
 # Log the raw new assets received from Rumble (útil para debug)
 Write-Host "Raw new assets: $($obj.new_assets | Out-String)"
 
