@@ -27,13 +27,18 @@ Write-Host $obj
 Write-Host "Raw new assets: $($obj.'new_assets' | Out-String)"
 
 # Procesar activos nuevos (si los hay)
-if ($obj.new -ne 0){
-    foreach ($asset in $obj.'new_assets'){
-        # Limpiar formato de direcciones y nombres (elimina corchetes y separa por espacios)
-        $asset.addresses = (ConvertFrom-Json $asset.addresses)
-        $asset.names = (ConvertFrom-Json $asset.names)
+if ($obj.new -ne 0) {
+    foreach ($asset in $obj.'new_assets') {
+        # Solo convertir si es string
+        if ($asset.addresses -is [string]) {
+            $asset.addresses = (ConvertFrom-Json $asset.addresses)
+        }
+        if ($asset.names -is [string]) {
+            $asset.names = (ConvertFrom-Json $asset.names)
+        }
+
         # Añadir campo que indica el tipo de evento
-        $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'new-assets-found'
+        $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -Value 'new-assets-found'
     }
 
     # Convertir los activos procesados a JSON
@@ -42,20 +47,30 @@ if ($obj.new -ne 0){
     Write-Host $new_assets
 }
 
+
 Write-Host "Raw changed assets: $($obj.'changed_assets' | Out-String)"
 
 # Procesar activos modificados (si los hay)
-if ($obj.changed -ne 0){
-    foreach ($asset in $obj.'changed_assets'){
-        $asset.addresses = (ConvertFrom-Json $asset.addresses)
-        $asset.names = (ConvertFrom-Json $asset.names)
-        $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'assets-changed'
+if ($obj.changed -ne 0) {
+    foreach ($asset in $obj.'changed_assets') {
+        # Solo convertir si es string
+        if ($asset.addresses -is [string]) {
+            $asset.addresses = (ConvertFrom-Json $asset.addresses)
+        }
+        if ($asset.names -is [string]) {
+            $asset.names = (ConvertFrom-Json $asset.names)
+        }
+
+        # Añadir campo que indica el tipo de evento
+        $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -Value 'assets-changed'
     }
 
+    # Convertir los activos procesados a JSON
     $changed_assets = $obj.'changed_assets' | ConvertTo-Json -Depth 5
     Write-Host "[+] Sending changed asset payload to Log Analytics:"
     Write-Host $changed_assets
 }
+
 
 Write-Host "[+] Fetched new and changed information from Rumble alerts webhook"
 
