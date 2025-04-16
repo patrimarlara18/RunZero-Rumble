@@ -24,7 +24,7 @@ $obj = $request.Body
 Write-Host $obj
 
 # Log the raw new assets received from Rumble (útil para debug)
-Write-Host "Raw new assets: $($obj.new_assets | Out-String)"
+Write-Host "Raw new assets: $($obj.'new_assets' | Out-String)"
 
 # Procesar activos nuevos (si los hay)
 if ($obj.new -ne 0){
@@ -37,20 +37,22 @@ if ($obj.new -ne 0){
     }
 
     # Convertir los activos procesados a JSON
-    $new_assets = @($obj.new_assets) | ConvertTo-Json -Depth 5
+    $new_assets = @($obj.'new_assets') | ConvertTo-Json -Depth 5
     Write-Host "[+] Sending new asset payload to Log Analytics:"
     Write-Host $new_assets
 }
 
+Write-Host "Raw changed assets: $($obj.'changed_assets' | Out-String)
+
 # Procesar activos modificados (si los hay)
 if ($obj.changed -ne 0){
     foreach ($asset in $obj.'changed_assets'){
-        $asset.addresses = $asset.addresses -replace '\[' -replace '\]' -split ' '
-        $asset.names = $asset.names -replace '\[' -replace '\]' -split ' '
+        $asset.addresses = (ConvertFrom-Json $asset.addresses)
+        $asset.names = (ConvertFrom-Json $asset.names)
         $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'assets-changed'
     }
 
-    $changed_assets = @($obj.changed_assets) | ConvertTo-Json -Depth 5
+    $changed_assets = @($obj.'changed_assets') | ConvertTo-Json -Depth 5
     Write-Host "[+] Sending changed asset payload to Log Analytics:"
     Write-Host $changed_assets
 }
