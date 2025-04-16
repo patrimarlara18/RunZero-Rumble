@@ -37,7 +37,7 @@ if ($obj.new -ne 0){
     }
 
     # Convertir los activos procesados a JSON
-    $new_assets = @($obj.'new_assets') | ConvertTo-Json -Depth 5
+    $new_assets = $obj.'new_assets' | ConvertTo-Json -Depth 5
     Write-Host "[+] Sending new asset payload to Log Analytics:"
     Write-Host $new_assets
 }
@@ -52,7 +52,7 @@ if ($obj.changed -ne 0){
         $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'assets-changed'
     }
 
-    $changed_assets = @($obj.'changed_assets') | ConvertTo-Json -Depth 5
+    $changed_assets = $obj.'changed_assets' | ConvertTo-Json -Depth 5
     Write-Host "[+] Sending changed asset payload to Log Analytics:"
     Write-Host $changed_assets
 }
