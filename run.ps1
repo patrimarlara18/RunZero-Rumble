@@ -42,7 +42,7 @@ if ($obj.new -ne 0){
     Write-Host $new_assets
 }
 
-Write-Host "Raw changed assets: $($obj.'changed_assets' | Out-String)
+Write-Host "Raw changed assets: $($obj.'changed_assets' | Out-String)"
 
 # Procesar activos modificados (si los hay)
 if ($obj.changed -ne 0){
