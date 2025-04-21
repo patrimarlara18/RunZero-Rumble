@@ -20,6 +20,7 @@ $timeGeneratedField = ""
 
 # Fetch the JSON content in the body of the HTTP POST request sent from Rumble via a webhook
 $obj = $request.Body
+Write-Host $obj
 
 # Correct improperly formatted 'names' and 'addresses' properties in the new and changed asset arrays
 # and convert the asset objects back to JSON to send to the Log Analytics Data Connector API
