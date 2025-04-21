@@ -22,6 +22,10 @@ $timeGeneratedField = ""
 $obj = $request.Body
 Write-Host $obj
 
+Write-Host ($obj.'changed_assets' | ForEach-Object { ($_.'addresses' -replace '^\[|]$' -replace '"', '') -split ',' })
+Write-Host ($obj.'new_assets' | ForEach-Object { ($_.'addresses' -replace '^\[|]$' -replace '"', '') -split ',' })
+
+
 # Correct improperly formatted 'names' and 'addresses' properties in the new and changed asset arrays
 # and convert the asset objects back to JSON to send to the Log Analytics Data Connector API
 if ($obj.new -ne 0){
