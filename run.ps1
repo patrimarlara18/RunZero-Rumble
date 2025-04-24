@@ -22,16 +22,16 @@ $timeGeneratedField = ""
 $obj = $request.Body
 Write-Host $obj
 
-Write-Host ($obj.'changed_assets' | ForEach-Object { ($_.'addresses' -replace '^\[|]$' -replace '"', '') -split ',' })
-Write-Host ($obj.'new_assets' | ForEach-Object { ($_.'addresses' -replace '^\[|]$' -replace '"', '') -split ',' })
+Write-Host $obj.'changed_assets'
+Write-Host $obj.'new_assets'
 
 
 # Correct improperly formatted 'names' and 'addresses' properties in the new and changed asset arrays
 # and convert the asset objects back to JSON to send to the Log Analytics Data Connector API
 if ($obj.new -ne 0){
     foreach ($asset in $obj.'new_assets'){
-        $asset.addresses = ($asset.addresses -replace '^\[|]$' -replace '"', '') -split ','
-        $asset.names = ($asset.names -replace '^\[|]$' -replace '"', '') -split ','
+        $asset.addresses = $asset.addresses
+        $asset.names = $asset.names
         $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'new-assets-found'
     }
 
