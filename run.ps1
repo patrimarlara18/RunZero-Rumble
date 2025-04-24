@@ -40,8 +40,8 @@ if ($obj.new -ne 0){
 
 if ($obj.changed -ne 0){
     foreach ($asset in $obj.'changed_assets'){
-        $asset.addresses = ($asset.addresses -replace '^\[|]$' -replace '"', '') -split ','
-        $asset.names = ($asset.names -replace '^\[|]$' -replace '"', '') -split ','
+        $asset.addresses = $asset.addresses
+        $asset.names = $asset.names
         $asset | Add-Member -MemberType NoteProperty -Name 'event_type' -value 'assets-changed'
     }
 
