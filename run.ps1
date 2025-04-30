@@ -52,6 +52,10 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     return $authorization
 }
 
+Write-Host $body
+Write-Host $body.Length
+Write-Host [System.Text.Encoding]::UTF8.GetByteCount($body)
+
 # Helper function to build and invoke a POST request to the Log Analytics Data Connector API
 Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 {
@@ -59,7 +63,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $contentType = "application/json"
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
-    $contentLength = $body.Length
+    $contentLength = [System.Text.Encoding]::UTF8.GetByteCount($body)
     $signature = Build-Signature `
         -customerId $customerId `
         -sharedKey $sharedKey `
@@ -80,6 +84,8 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
     return $response.StatusCode
 }
+
+Write-Host $response
 
 # Convert the Rumble Asset information to JSON
 $json = $response | ConvertTo-Json -Depth 3
