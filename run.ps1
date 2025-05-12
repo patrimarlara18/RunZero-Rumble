@@ -25,7 +25,7 @@ Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 $rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products'
 
 # Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
-$logType = "RumbleAssets" 
+$logType = "RumbleAssets"
 
 # Optional value that specifies the name of the field denoting the time the data was generated
 # If unspecified, the Log Analytics Data Connector API assumes it was generated at ingestion time
@@ -75,6 +75,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
 
+    # CORREGIDO: Calcular content-length en bytes pero no usar eso como cuerpo, solo para la firma
     $contentLength = [System.Text.Encoding]::UTF8.GetByteCount($body)
     Write-Host "[DEBUG] Content-Length (bytes): $contentLength"
 
@@ -86,7 +87,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
         -method $method `
         -contentType $contentType `
         -resource $resource
-    
+
     $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
     Write-Host "[DEBUG] Log Analytics POST URI: $uri"
 
@@ -101,9 +102,10 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     }
 
     Write-Host "[DEBUG] Headers:"
-    $headers.GetEnumerator() | ForEach-Object { Write-Host "  $_" }
+    $headers.GetEnumerator() | ForEach-Object { Write-Host "  $($_.Key): $($_.Value)" }
 
     try {
+        # CORREGIDO: El body se pasa como string (JSON), no como array de bytes
         $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
         Write-Host "[DEBUG] Response status code: $($response.StatusCode)"
         return $response.StatusCode
@@ -114,6 +116,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 }
 
 # POST the Rumble asset information to the Log Analytics Data Connector API
+# CORREGIDO: Pasar el $json como está (string), no en otro formato
 $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $json -logType $logType
 
 # Check the status of the POST request
