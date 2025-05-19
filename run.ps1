@@ -39,6 +39,7 @@ $headers = @{
 $response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop
 Write-Host "[+] Fetched asset information from the Rumble API"
 Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
+Write-Host $response
 
 # Helper function to build the authorization signature for the Log Analytics Data Connector API
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
