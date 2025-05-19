@@ -64,7 +64,7 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
 }
 
 # Convert the Rumble Asset information to JSON
-$json = $response | ConvertTo-Json -Depth 3
+$json = $response
 Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
 Write-Host "[DEBUG] JSON preview:`n$json".Substring(0, [Math]::Min(500, $json.Length))
 
