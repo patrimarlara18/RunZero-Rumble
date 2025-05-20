@@ -50,8 +50,6 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     $xHeaders = "x-ms-date:" + $date
     $stringToHash = $method + "`n" + $contentLength + "`n" + $contentType + "`n" + $xHeaders + "`n" + $resource
 
-    Write-Host "[DEBUG] StringToHash:`n$stringToHash"
-
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
 
@@ -60,13 +58,8 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     $calculatedHash = $sha256.ComputeHash($bytesToHash)
     $encodedHash = [Convert]::ToBase64String($calculatedHash)
     $authorization = 'SharedKey {0}:{1}' -f $customerId,$encodedHash
-
-    Write-Host "[DEBUG] Authorization header: $authorization"
-
     return $authorization
 }
-
-Write-Host $body
 
 # Helper function to build and invoke a POST request to the Log Analytics Data Connector API
 Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
@@ -75,11 +68,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $contentType = "application/json"
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
-
-    # CORREGIDO: Calcular content-length en bytes pero no usar eso como cuerpo, solo para la firma
-    $contentLength = [System.Text.Encoding]::UTF8.GetByteCount($body)
-    Write-Host "[DEBUG] Content-Length (bytes): $contentLength"
-
+    $contentLength = $body.Length
     $signature = Build-Signature `
         -customerId $customerId `
         -sharedKey $sharedKey `
@@ -90,34 +79,20 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
         -resource $resource
 
     $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
-    Write-Host "[DEBUG] Log Analytics POST URI: $uri"
-
     $headers = @{
         "Authorization" = $signature;
         "Log-Type" = $logType;
         "x-ms-date" = $rfc1123date;
+        "time-generated-field" = $timeGeneratedField;
     }
-
-    if ($timeGeneratedField -ne "") {
-        $headers["time-generated-field"] = $timeGeneratedField
-    }
-
-    Write-Host "[DEBUG] Headers:"
-    $headers.GetEnumerator() | ForEach-Object { Write-Host "  $($_.Key): $($_.Value)" }
-
-    try {
-        # CORREGIDO: El body se pasa como string (JSON), no como array de bytes
-        $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
-        Write-Host "[DEBUG] Response status code: $($response.StatusCode)"
-        return $response.StatusCode
-    } catch {
-        Write-Host "[-] Exception during POST to Log Analytics: $($_.Exception.Message)"
-        return 0
-    }
+    
+    $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
+    return $response.StatusCode
 }
 
+$json = $response
+
 # POST the Rumble asset information to the Log Analytics Data Connector API
-# CORREGIDO: Pasar el $json como está (string), no en otro formato
 $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body ([System.Text.Encoding]::UTF8.GetBytes($json)) -logType $logType
 
 # Check the status of the POST request
