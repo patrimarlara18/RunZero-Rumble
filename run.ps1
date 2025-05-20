@@ -42,13 +42,7 @@ Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 
 Write-Host $response
 
-# CORREGIDO: Asegurarse de que el JSON esté correctamente estructurado
-if ($response -is [string]) {
-    $parsed = $response | ConvertFrom-Json
-} else {
-    $parsed = $response
-}
-$json = $parsed | ConvertTo-Json -Depth 5
+$json = $response | ConvertFrom-Json -AsHashTable
 Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
 Write-Host "[DEBUG] JSON preview:`n$json".Substring(0, [Math]::Min(500, $json.Length))
 
