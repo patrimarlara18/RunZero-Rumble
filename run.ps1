@@ -120,7 +120,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 
 # POST the Rumble asset information to the Log Analytics Data Connector API
 # CORREGIDO: Pasar el $json como está (string), no en otro formato
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $json -logType $logType
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body ([System.Text.Encoding]::UTF8.GetBytes($json)) -logType $logType
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
