@@ -68,6 +68,8 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     return $authorization
 }
 
+Write-Host $body
+
 # Helper function to build and invoke a POST request to the Log Analytics Data Connector API
 Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 {
