@@ -90,7 +90,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     return $response.StatusCode
 }
 
-$jsonObjects = $response | ConvertFrom-Json
+$jsonObjects = $response | ConvertFrom-Json -AsHashTable
 Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
 $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 Post-LogAnalyticsData -body ([System.Text.Encoding]::UTF8.GetBytes($jsonBody)) -logType $logType
