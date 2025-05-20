@@ -39,7 +39,13 @@ $headers = @{
 $response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop
 Write-Host "[+] Fetched asset information from the Rumble API"
 Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
-Write-Host $response
+Write-Host "[DEBUG] Number of assets fetched: $($response.Count)"
+
+# Convert the Rumble Asset information to a JSON string
+# CORREGIDO: No usar ConvertFrom-Json porque Invoke-RestMethod ya devuelve un objeto
+$body = $response | ConvertTo-Json -Depth 10
+Write-Host "[DEBUG] JSON payload length (chars): $($body.Length)"
+Write-Host "[DEBUG] JSON preview:`n$($body.Substring(0, [Math]::Min(500, $body.Length)))"
 
 # Helper function to build the authorization signature for the Log Analytics Data Connector API
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
@@ -63,11 +69,6 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     return $authorization
 }
 
-# Convert the Rumble Asset information to JSON
-$json = $response | ConvertFrom-Json -AsHashtable
-Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
-Write-Host "[DEBUG] JSON preview:`n$json".Substring(0, [Math]::Min(500, $json.Length))
-
 # Helper function to build and invoke a POST request to the Log Analytics Data Connector API
 Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 {
@@ -76,7 +77,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
 
-    # CORREGIDO: Calcular content-length en bytes pero no usar eso como cuerpo, solo para la firma
+    # CORREGIDO: Calcular content-length en bytes para la firma
     $contentLength = [System.Text.Encoding]::UTF8.GetByteCount($body)
     Write-Host "[DEBUG] Content-Length (bytes): $contentLength"
 
@@ -117,8 +118,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 }
 
 # POST the Rumble asset information to the Log Analytics Data Connector API
-# CORREGIDO: Pasar el $json como está (string), no en otro formato
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $json -logType $logType
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $body -logType $logType
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
