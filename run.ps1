@@ -42,7 +42,7 @@ Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 
 Write-Host $response
 
-$json = $response | ConvertFrom-Json -AsHashTable
+$json = $response
 Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
 Write-Host "[DEBUG] JSON preview:`n$json".Substring(0, [Math]::Min(500, $json.Length))
 
