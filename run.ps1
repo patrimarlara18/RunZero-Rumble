@@ -40,8 +40,6 @@ $response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $head
 Write-Host "[+] Fetched asset information from the Rumble API"
 Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 
-Write-Host $response
-
 $json = $response
 Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
 Write-Host "[DEBUG] JSON preview:`n$json".Substring(0, [Math]::Min(500, $json.Length))
