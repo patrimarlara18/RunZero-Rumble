@@ -93,11 +93,10 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 $jsonObjects = $response | ConvertFrom-Json -AsHashTable
 Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
 $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
-Post-LogAnalyticsData -body ([System.Text.Encoding]::UTF8.GetBytes($jsonBody)) -logType $logType
-
 
 # POST the Rumble asset information to the Log Analytics Data Connector API
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body ([System.Text.Encoding]::UTF8.GetBytes($jsonBody)) -logType $logType
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
