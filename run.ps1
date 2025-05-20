@@ -42,13 +42,23 @@ Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 
 Write-Host $response
 
+# CORREGIDO: Asegurarse de que el JSON esté correctamente estructurado
+if ($response -is [string]) {
+    $parsed = $response | ConvertFrom-Json
+} else {
+    $parsed = $response
+}
+$json = $parsed | ConvertTo-Json -Depth 5
+Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
+Write-Host "[DEBUG] JSON preview:`n$json".Substring(0, [Math]::Min(500, $json.Length))
+
 # Helper function to build the authorization signature for the Log Analytics Data Connector API
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
 {
     $xHeaders = "x-ms-date:" + $date
-    $stringToHash = $method + "n" + $contentLength + "n" + $contentType + "n" + $xHeaders + "n" + $resource
+    $stringToHash = $method + "`n" + $contentLength + "`n" + $contentType + "`n" + $xHeaders + "`n" + $resource
 
-    Write-Host "[DEBUG] StringToHash:n$stringToHash"
+    Write-Host "[DEBUG] StringToHash:`n$stringToHash"
 
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
@@ -64,11 +74,6 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     return $authorization
 }
 
-# Convert the Rumble Asset information to JSON
-$json = $response | ConvertFrom-Json
-Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
-Write-Host "[DEBUG] JSON preview:n$json".Substring(0, [Math]::Min(500, $json.Length))
-
 # Helper function to build and invoke a POST request to the Log Analytics Data Connector API
 Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 {
@@ -81,13 +86,13 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $contentLength = [System.Text.Encoding]::UTF8.GetByteCount($body)
     Write-Host "[DEBUG] Content-Length (bytes): $contentLength"
 
-    $signature = Build-Signature 
-        -customerId $customerId 
-        -sharedKey $sharedKey 
-        -date $rfc1123date 
-        -contentLength $contentLength 
-        -method $method 
-        -contentType $contentType 
+    $signature = Build-Signature `
+        -customerId $customerId `
+        -sharedKey $sharedKey `
+        -date $rfc1123date `
+        -contentLength $contentLength `
+        -method $method `
+        -contentType $contentType `
         -resource $resource
 
     $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
