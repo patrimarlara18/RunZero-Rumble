@@ -91,7 +91,7 @@ Write-Host $response.Content
 
 $jsonObjects = $response | ConvertFrom-Json -AsHashTable
 Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
-$jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
+//$jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
 Write-Host "[DEBUG] JSON Body to send: $jsonBody"
 
