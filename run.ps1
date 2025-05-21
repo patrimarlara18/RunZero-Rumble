@@ -89,36 +89,17 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 Write-Host $response.StatusCode
 Write-Host $response.Content
 
-# $jsonObjects = $response | ConvertFrom-Json -AsHashTable
-# Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
-# $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
+$jsonObjects = $response | ConvertFrom-Json -AsHashTable
+Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
+$jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
 # Write-Host "[DEBUG] JSON Body to send: $jsonBody"
 
 
-# POST the Rumble asset information to the Log Analytics Data Connector API        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
+# POST the Rumble asset information to the Log Analytics Data Connector API        
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
 
-# Write-Host $statusCode
-
-# Envío por bloques
-$batchSize = 100
-$counter = 0
-$total = $jsonObjects.Count
-
-while ($counter -lt $total) {
-    $upperLimit = [Math]::Min($counter + $batchSize - 1, $total - 1)
-    $batch = $jsonObjects[$counter..$upperLimit]
-    $jsonBody = $batch | ConvertTo-Json -Depth 100
-
-    $statusCode = Post-LogAnalyticsData `
-        -customerId $workspaceId `
-        -sharedKey $workspaceKey `
-        -body $jsonBody `
-        -logType $logType
-
-    Write-Host "[+] Batch sent ($counter to $upperLimit) - Status: $statusCode"
-    $counter += $batchSize
-}
+Write-Host $statusCode
 
 
 # Check the status of the POST request
