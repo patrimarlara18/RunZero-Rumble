@@ -93,7 +93,7 @@ $jsonObjects = $response | ConvertFrom-Json -AsHashTable
 Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
 $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
-# Write-Host "[DEBUG] JSON Body to send: $jsonBody"
+Write-Host "[DEBUG] JSON Body to send: $jsonBody"
 
 
 # POST the Rumble asset information to the Log Analytics Data Connector API        
