@@ -97,7 +97,7 @@ $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
 
 # POST the Rumble asset information to the Log Analytics Data Connector API        
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
 
 Write-Host $statusCode
 
