@@ -95,8 +95,10 @@ $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
 Write-Host "[DEBUG] JSON Body to send: $jsonBody"
 
+$Prueba = [ { "domains": [], "agent_name": "NGLO071PXW09", "os_version": "", "service_protocols": null, "service_ports_tcp": null, "hw_version": "", "newest_mac": null, "hw": "VMware VM", "os_product": "", "created_at": 1738952870, "site_name": "ARGENTINA", "addresses": [], "tags": {}, "detected_by": "VMware", "newest_mac_age": null, "newest_mac_vendor": null, "scanned": false, "os_vendor": "", "hw_vendor": "VMware", "comments": null, "addresses_extra": [], "tag_descriptions": null, "updated_at": 1744396021, "alive": true, "org_name": "Globant", "type": "Server", "hw_product": "VMware VM", "names": [ "MX-MTY-WWLC-01" ], "service_products": null, "first_seen": 1738952790, "last_seen": 1744395945, "os": "", "service_ports_udp": null, "sources": [ "VMware" ], "id": "02c77bb9-edd0-4c23-8bd3-a35f3ce94daf" }]
+
 # POST the Rumble asset information to the Log Analytics Data Connector API
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
 
 Write-Host $statusCode
 
