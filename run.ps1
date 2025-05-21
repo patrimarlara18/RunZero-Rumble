@@ -100,10 +100,15 @@ Write-Host $response.Content
 
 # Write-Host $statusCode
 
-$jsonObjects = $response | ConvertFrom-Json -AsHashTable
+# Envío por bloques
+$batchSize = 100
+$counter = 0
+$total = $jsonObjects.Count
 
-foreach ($obj in $jsonObjects) {
-    $jsonBody = $obj | ConvertTo-Json -Depth 100
+while ($counter -lt $total) {
+    $upperLimit = [Math]::Min($counter + $batchSize - 1, $total - 1)
+    $batch = $jsonObjects[$counter..$upperLimit]
+    $jsonBody = $batch | ConvertTo-Json -Depth 100
 
     $statusCode = Post-LogAnalyticsData `
         -customerId $workspaceId `
@@ -111,7 +116,8 @@ foreach ($obj in $jsonObjects) {
         -body $jsonBody `
         -logType $logType
 
-    Write-Host "Enviado objeto con status: $statusCode"
+    Write-Host "[+] Batch sent ($counter to $upperLimit) - Status: $statusCode"
+    $counter += $batchSize
 }
 
 
