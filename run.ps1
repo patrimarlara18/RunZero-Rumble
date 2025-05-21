@@ -89,18 +89,31 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 Write-Host $response.StatusCode
 Write-Host $response.Content
 
+# $jsonObjects = $response | ConvertFrom-Json -AsHashTable
+# Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
+# $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
+
+# Write-Host "[DEBUG] JSON Body to send: $jsonBody"
+
+
+# POST the Rumble asset information to the Log Analytics Data Connector API        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
+
+# Write-Host $statusCode
+
 $jsonObjects = $response | ConvertFrom-Json -AsHashTable
-Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
-//$jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
-Write-Host "[DEBUG] JSON Body to send: $jsonBody"
+foreach ($obj in $jsonObjects) {
+    $jsonBody = $obj | ConvertTo-Json -Depth 100
 
-$Prueba = [ { "domains": [], "agent_name": "NGLO071PXW09", "os_version": "", "service_protocols": null, "service_ports_tcp": null, "hw_version": "", "newest_mac": null, "hw": "VMware VM", "os_product": "", "created_at": 1738952870, "site_name": "ARGENTINA", "addresses": [], "tags": {}, "detected_by": "VMware", "newest_mac_age": null, "newest_mac_vendor": null, "scanned": false, "os_vendor": "", "hw_vendor": "VMware", "comments": null, "addresses_extra": [], "tag_descriptions": null, "updated_at": 1744396021, "alive": true, "org_name": "Globant", "type": "Server", "hw_product": "VMware VM", "names": [ "MX-MTY-WWLC-01" ], "service_products": null, "first_seen": 1738952790, "last_seen": 1744395945, "os": "", "service_ports_udp": null, "sources": [ "VMware" ], "id": "02c77bb9-edd0-4c23-8bd3-a35f3ce94daf" }]
+    $statusCode = Post-LogAnalyticsData `
+        -customerId $workspaceId `
+        -sharedKey $workspaceKey `
+        -body $jsonBody `
+        -logType $logType
 
-# POST the Rumble asset information to the Log Analytics Data Connector API
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
+    Write-Host "Enviado objeto con status: $statusCode"
+}
 
-Write-Host $statusCode
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
