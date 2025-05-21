@@ -99,8 +99,6 @@ Write-Host "[DEBUG] JSON Body to send: $jsonBody"
 $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
 
 Write-Host $statusCode
-Write-Host Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonObjects -logType $logType
-
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
