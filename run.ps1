@@ -40,10 +40,6 @@ $response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $head
 Write-Host "[+] Fetched asset information from the Rumble API"
 Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 
-$json = $response
-Write-Host "[DEBUG] JSON payload length (chars): $($json.Length)"
-Write-Host "[DEBUG] JSON preview:`n$json".Substring(0, [Math]::Min(500, $json.Length))
-
 # Helper function to build the authorization signature for the Log Analytics Data Connector API
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
 {
@@ -90,8 +86,8 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     return $response.StatusCode
 }
 
-Write-Host "[DEBUG] Response status code: $($response.StatusCode)"
-Write-Host "[DEBUG] Response content:`n$($response.Content)"
+Write-Host $response.StatusCode
+Write-Host $response.Content
 
 $jsonObjects = $response | ConvertFrom-Json -AsHashTable
 Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
