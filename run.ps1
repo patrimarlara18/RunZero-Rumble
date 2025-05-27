@@ -22,7 +22,7 @@ Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
 # Rumble assets export URI
-$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products'
+$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at'
 
 # Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
 $logType = "RumbleAssets"
@@ -44,7 +44,7 @@ Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
 {
     $xHeaders = "x-ms-date:" + $date
-    $stringToHash = $method + "`n" + $contentLength + "`n" + $contentType + "`n" + $xHeaders + "`n" + $resource
+    $stringToHash = $method + "n" + $contentLength + "n" + $contentType + "n" + $xHeaders + "n" + $resource
 
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
@@ -65,13 +65,13 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
     $contentLength = $body.Length
-    $signature = Build-Signature `
-        -customerId $customerId `
-        -sharedKey $sharedKey `
-        -date $rfc1123date `
-        -contentLength $contentLength `
-        -method $method `
-        -contentType $contentType `
+    $signature = Build-Signature 
+        -customerId $customerId 
+        -sharedKey $sharedKey 
+        -date $rfc1123date 
+        -contentLength $contentLength 
+        -method $method 
+        -contentType $contentType 
         -resource $resource
 
     $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
@@ -89,17 +89,30 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 Write-Host $response.StatusCode
 Write-Host $response.Content
 
+# $jsonObjects = $response | ConvertFrom-Json -AsHashTable
+# Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
+# $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
+
+# Write-Host "[DEBUG] JSON Body to send: $jsonBody"
+
+
+# POST the Rumble asset information to the Log Analytics Data Connector API        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
+
+# Write-Host $statusCode
+
 $jsonObjects = $response | ConvertFrom-Json -AsHashTable
-Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
-$jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
-Write-Host "[DEBUG] JSON Body to send: $jsonBody"
+foreach ($obj in $jsonObjects) {
+    $jsonBody = $obj | ConvertTo-Json -Depth 100
 
+    $statusCode = Post-LogAnalyticsData 
+        -customerId $workspaceId 
+        -sharedKey $workspaceKey 
+        -body $jsonBody 
+        -logType $logType
 
-# POST the Rumble asset information to the Log Analytics Data Connector API        
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-
-Write-Host $statusCode
+    Write-Host "Enviado objeto con status: $statusCode"
+}
 
 
 # Check the status of the POST request
