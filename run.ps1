@@ -22,7 +22,7 @@ Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
 # Rumble assets export URI
-$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at'
+$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version'
 
 # Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
 $logType = "RumbleAssets"
