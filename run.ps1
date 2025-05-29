@@ -44,7 +44,7 @@ Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
 {
     $xHeaders = "x-ms-date:" + $date
-    $stringToHash = $method + "n" + $contentLength + "n" + $contentType + "n" + $xHeaders + "n" + $resource
+    $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
 
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
