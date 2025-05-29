@@ -65,13 +65,13 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
     $contentLength = $body.Length
-    $signature = Build-Signature 
-        -customerId $customerId 
-        -sharedKey $sharedKey 
-        -date $rfc1123date 
-        -contentLength $contentLength 
-        -method $method 
-        -contentType $contentType 
+    $signature = Build-Signature `
+        -customerId $customerId `
+        -sharedKey $sharedKey `
+        -date $rfc1123date `
+        -contentLength $contentLength `
+        -method $method `
+        -contentType $contentType `
         -resource $resource
 
     $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
@@ -105,13 +105,7 @@ Write-Host $jsonObjects
 
 foreach ($obj in $jsonObjects) {
     $jsonBody = $obj | ConvertTo-Json -Depth 100
-
-    $statusCode = Post-LogAnalyticsData 
-        -customerId $workspaceId 
-        -sharedKey $workspaceKey 
-        -body $jsonBody 
-        -logType $logType
-
+    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
     Write-Host "Enviado objeto con status: $statusCode"
 }
 
