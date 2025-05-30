@@ -99,11 +99,11 @@ Write-Host $response
 
 # Write-Host $statusCode
 
-$jsonObjects = $response | ConvertFrom-Json -AsHashTable
+# $jsonObjects = $response | ConvertFrom-Json -AsHashTable
 
-Write-Host $jsonObjects
+# Write-Host $jsonObjects
 
-foreach ($obj in $jsonObjects) {
+foreach ($obj in $response) {
     $jsonBody = $obj | ConvertTo-Json -Depth 100
     $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
     Write-Host "Enviado objeto con status: $statusCode"
