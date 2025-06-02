@@ -22,7 +22,7 @@ Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
 # Rumble assets export URI
-$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=alive,names,addresses,type,os'
+$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products'
 
 # Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
 $logType = "RumbleAssets"
@@ -103,10 +103,10 @@ Write-Host $response
 
 # Write-Host $jsonObjects
 
-foreach ($obj in $response) {
+foreach ($obj in $response | Where-Object { $_.site_name -eq "URUGUAY" }) {
     $jsonBody = $obj | ConvertTo-Json -Depth 100
     $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-    Write-Host "Enviado objeto con status: $statusCode"
+    Write-Host "Enviado objeto (site_name=URUGUAY) con status: $statusCode"
 }
 
 
