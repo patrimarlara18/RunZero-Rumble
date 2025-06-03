@@ -96,16 +96,7 @@ $groupedBySite = $responseObjects | Group-Object -Property site_name
 # Tamaño máximo por lote (en bytes). Aquí 2.5 MB.
 $maxBatchSize = 2.5MB
 
-# NUEVO: Limita cuántos site_name se procesan por ejecución
-$maxSitesPerRun = 3
-$siteCounter = 0
-
 foreach ($siteGroup in $groupedBySite) {
-    if ($siteCounter -ge $maxSitesPerRun) {
-        Write-Host "[!] Límite de sites por ejecución alcanzado. Terminando."
-        break
-    }
-
     $siteName = $siteGroup.Name
     $assets = $siteGroup.Group
 
@@ -143,8 +134,6 @@ foreach ($siteGroup in $groupedBySite) {
         $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
         Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
     }
-
-    $siteCounter++
 }
 
 # Check the status of the POST request
@@ -154,9 +143,6 @@ if ($statusCode -eq 200){
     Write-Host "[-] Failed to send POST request to the Log Analytics API with status code: $statusCode"
 }
 
-# Log the function end time
-$currentUTCtime = (Get-Date).ToUniversalTime()
-Write-Host "[+] PowerShell timer trigger function finished at: $currentUTCtime"
 # Log the function end time
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function finished at: $currentUTCtime"
