@@ -81,32 +81,20 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
         "x-ms-date" = $rfc1123date;
         "time-generated-field" = $timeGeneratedField;
     }
-    
+
     $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
     return $response.StatusCode
 }
 
 Write-Host $response
 
-# $jsonObjects = $response | ConvertFrom-Json -AsHashTable
-# Write-Host "[DEBUG] jsonObjects type: $($jsonObjects.GetType().FullName)"
-# $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
-
-# Write-Host "[DEBUG] JSON Body to send: $jsonBody"
-
-
-# POST the Rumble asset information to the Log Analytics Data Connector API        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $Prueba -logType $logType
-
-# Write-Host $statusCode
-
-# $jsonObjects = $response | ConvertFrom-Json -AsHashTable
-
-# Write-Host $jsonObjects
-
 $responseObjects = $response | ConvertFrom-Json -AsHashtable
 
 # Agrupa los objetos por site_name
 $groupedBySite = $responseObjects | Group-Object -Property site_name
+
+# Tamaño máximo por lote (en bytes). Aquí 2.5 MB.
+$maxBatchSize = 2.5MB
 
 foreach ($siteGroup in $groupedBySite) {
     $siteName = $siteGroup.Name
@@ -114,16 +102,39 @@ foreach ($siteGroup in $groupedBySite) {
 
     Write-Host "[+] Procesando site_name: $siteName con $($assets.Count) assets"
 
+    # Inicializa el batch
+    $currentBatch = @()
+    $currentSize = 0
+
     foreach ($obj in $assets) {
-        $jsonBody = $obj | ConvertTo-Json -Depth 100
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "    Enviado asset con status: $statusCode"
+        $json = $obj | ConvertTo-Json -Depth 100 -Compress
+        $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
+
+        if (($currentSize + $size) -gt $maxBatchSize) {
+            # Si el batch actual ya está lleno, envíalo
+            $jsonBody = "[" + ($currentBatch -join ",") + "]"
+            $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+            Write-Host "    [Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+
+            Start-Sleep -Milliseconds 500  # pequeña pausa
+
+            # Reinicia el batch
+            $currentBatch = @()
+            $currentSize = 0
+        }
+
+        # Agrega el objeto al batch
+        $currentBatch += $json
+        $currentSize += $size
     }
 
-    Start-Sleep -Seconds 1 # Pequeña pausa para evitar throttling o saturación
+    # Enviar cualquier batch restante
+    if ($currentBatch.Count -gt 0) {
+        $jsonBody = "[" + ($currentBatch -join ",") + "]"
+        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+        Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+    }
 }
-
-
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
