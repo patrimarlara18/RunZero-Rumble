@@ -103,13 +103,16 @@ Write-Host $response
 
 # Write-Host $jsonObjects
 
-$responseObjects = $response | ConvertFrom-Json
+$responseObjects = $response | ConvertFrom-Json -AsHashtable
 
-foreach ($obj in $responseObjects | Where-Object { $_.site_name -eq "URUGUAY" }) {
-    $jsonBody = $obj | ConvertTo-Json -Depth 100
-    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-    Write-Host "Enviado objeto (site_name=URUGUAY) con status: $statusCode"
+foreach ($obj in $responseObjects) {
+    if ($obj.site_name -eq "URUGUAY") {
+        $jsonBody = $obj | ConvertTo-Json -Depth 100
+        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+        Write-Host "Enviado objeto (site_name=URUGUAY) con status: $statusCode"
+    }
 }
+
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
