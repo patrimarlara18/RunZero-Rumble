@@ -105,13 +105,24 @@ Write-Host $response
 
 $responseObjects = $response | ConvertFrom-Json -AsHashtable
 
-foreach ($obj in $responseObjects) {
-    if ($obj.site_name -eq "URUGUAY") {
+# Agrupa los objetos por site_name
+$groupedBySite = $responseObjects | Group-Object -Property site_name
+
+foreach ($siteGroup in $groupedBySite) {
+    $siteName = $siteGroup.Name
+    $assets = $siteGroup.Group
+
+    Write-Host "[+] Procesando site_name: $siteName con $($assets.Count) assets"
+
+    foreach ($obj in $assets) {
         $jsonBody = $obj | ConvertTo-Json -Depth 100
         $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "Enviado objeto (site_name=URUGUAY) con status: $statusCode"
+        Write-Host "    Enviado asset con status: $statusCode"
     }
+
+    Start-Sleep -Seconds 1 # Pequeña pausa para evitar throttling o saturación
 }
+
 
 
 # Check the status of the POST request
