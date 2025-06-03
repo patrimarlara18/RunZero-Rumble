@@ -104,8 +104,8 @@ foreach ($obj in $responseObjects) {
 
 # Enviar batch restante
 if ($currentBatch.Count -gt 0) {
-    $jsonBody = "[" + ($currentBatch -join ",") + "]"
-    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+    $jsonArray = $currentBatch | ConvertFrom-Json | ConvertTo-Json -Depth 100
+    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonArray -logType $logType
     Write-Host "[Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
 }
 
