@@ -75,44 +75,44 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     return $response.StatusCode
 }
 
-$responseObjects = $response | ConvertFrom-Json -AsHashtable
+$responseObjects = $response.assets  # O ajústalo según cómo venga realmente
 
-$maxBatchSize = 2.5MB
+# Agrupar por site_name
+$groupedBySite = $responseObjects | Group-Object -Property site_name
 
-$currentBatch = @()
-$currentSize = 0
+foreach ($siteGroup in $groupedBySite) {
+    $siteName = $siteGroup.Name
+    $assets = $siteGroup.Group
 
-foreach ($obj in $response) {
-    # Convertir a JSON
-    $json = $obj | ConvertTo-Json -Depth 10 -Compress
-    $size = [Text.Encoding]::UTF8.GetByteCount($json)
+    Write-Host "[+] Procesando site_name: $siteName con $($assets.Count) assets"
 
-    if (($currentSize + $size) -gt $maxBatchSize) {
-        # Enviar batch
-        $jsonBody = "[" + ($currentBatch -join ",") + "]"
-        $statusCode = Post-LogAnalyticsData $workspaceId $workspaceKey $jsonBody $logType $timeGeneratedField
-        Write-Host "[Batch enviado] Registros: $($currentBatch.Count), Status: $statusCode"
+    $currentBatch = @()
+    $currentSize = 0
+    $maxBatchSize = 2.5MB
 
-        $currentBatch = @()
-        $currentSize = 0
-        Start-Sleep -Milliseconds 500
+    foreach ($obj in $assets) {
+        $json = $obj | ConvertTo-Json -Depth 10 -Compress
+        $size = [Text.Encoding]::UTF8.GetByteCount($json)
+
+        if (($currentSize + $size) -gt $maxBatchSize) {
+            $jsonBody = "[" + ($currentBatch -join ",") + "]"
+            $statusCode = Post-LogAnalyticsData $workspaceId $workspaceKey $jsonBody $logType
+            Write-Host "[Batch enviado - $siteName] Registros: $($currentBatch.Count), Status: $statusCode"
+            $currentBatch = @()
+            $currentSize = 0
+            Start-Sleep -Milliseconds 500
+        }
+
+        $currentBatch += $json
+        $currentSize += $size
     }
 
-    $currentBatch += $json
-    $currentSize += $size
-}
-
-# Último batch
-if ($currentBatch.Count -gt 0) {
-    $jsonBody = "[" + ($currentBatch -join ",") + "]"
-    $statusCode = Post-LogAnalyticsData $workspaceId $workspaceKey $jsonBody $logType $timeGeneratedField
-    Write-Host "[Último batch enviado] Registros: $($currentBatch.Count), Status: $statusCode"
-}
-
-if ($statusCode -eq 200) {
-    Write-Host "[+] Successfully sent POST request to the Log Analytics API"
-} else {
-    Write-Host "[-] Failed to send POST request to the Log Analytics API with status code: $statusCode"
+    # Último batch
+    if ($currentBatch.Count -gt 0) {
+        $jsonBody = "[" + ($currentBatch -join ",") + "]"
+        $statusCode = Post-LogAnalyticsData $workspaceId $workspaceKey $jsonBody $logType
+        Write-Host "[Último batch - $siteName] Registros: $($currentBatch.Count), Status: $statusCode"
+    }
 }
 
 
