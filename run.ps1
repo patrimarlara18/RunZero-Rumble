@@ -82,41 +82,31 @@ $maxBatchSize = 2.5MB
 $currentBatch = @()
 $currentSize = 0
 
-foreach ($obj in $responseObjects) {
-    $json = $obj | ConvertTo-Json -Depth 100 -Compress
-    $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
+foreach ($obj in $response) {
+    # Convertir a JSON
+    $json = $obj | ConvertTo-Json -Depth 10 -Compress
+    $size = [Text.Encoding]::UTF8.GetByteCount($json)
 
     if (($currentSize + $size) -gt $maxBatchSize) {
-        # Enviar batch actual
+        # Enviar batch
         $jsonBody = "[" + ($currentBatch -join ",") + "]"
-        
-        if (![string]::IsNullOrWhiteSpace($jsonBody)) {
-            $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-            Write-Host "[Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
-        } else {
-            Write-Host "[-] Batch vacío, no se envió nada"
-        }
-
-        Start-Sleep -Milliseconds 500
+        $statusCode = Post-LogAnalyticsData $workspaceId $workspaceKey $jsonBody $logType $timeGeneratedField
+        Write-Host "[Batch enviado] Registros: $($currentBatch.Count), Status: $statusCode"
 
         $currentBatch = @()
         $currentSize = 0
+        Start-Sleep -Milliseconds 500
     }
 
     $currentBatch += $json
     $currentSize += $size
 }
 
-# Enviar batch restante
+# Último batch
 if ($currentBatch.Count -gt 0) {
     $jsonBody = "[" + ($currentBatch -join ",") + "]"
-
-    if (![string]::IsNullOrWhiteSpace($jsonBody)) {
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "[Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
-    } else {
-        Write-Host "[-] Último batch estaba vacío. No se envió nada."
-    }
+    $statusCode = Post-LogAnalyticsData $workspaceId $workspaceKey $jsonBody $logType $timeGeneratedField
+    Write-Host "[Último batch enviado] Registros: $($currentBatch.Count), Status: $statusCode"
 }
 
 if ($statusCode -eq 200) {
