@@ -89,8 +89,13 @@ foreach ($obj in $responseObjects) {
     if (($currentSize + $size) -gt $maxBatchSize) {
         # Enviar batch actual
         $jsonBody = "[" + ($currentBatch -join ",") + "]"
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "[Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+        
+        if (![string]::IsNullOrWhiteSpace($jsonBody)) {
+            $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+            Write-Host "[Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+        } else {
+            Write-Host "[-] Batch vacío, no se envió nada"
+        }
 
         Start-Sleep -Milliseconds 500
 
@@ -104,9 +109,14 @@ foreach ($obj in $responseObjects) {
 
 # Enviar batch restante
 if ($currentBatch.Count -gt 0) {
-    $jsonArray = $currentBatch | ConvertFrom-Json | ConvertTo-Json -Depth 100
-    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonArray -logType $logType
-    Write-Host "[Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+    $jsonBody = "[" + ($currentBatch -join ",") + "]"
+
+    if (![string]::IsNullOrWhiteSpace($jsonBody)) {
+        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+        Write-Host "[Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+    } else {
+        Write-Host "[-] Último batch estaba vacío. No se envió nada."
+    }
 }
 
 if ($statusCode -eq 200) {
@@ -114,6 +124,7 @@ if ($statusCode -eq 200) {
 } else {
     Write-Host "[-] Failed to send POST request to the Log Analytics API with status code: $statusCode"
 }
+
 
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function finished at: $currentUTCtime"
