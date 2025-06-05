@@ -31,18 +31,20 @@ $headers = @{
     Authorization = "Bearer $rumbleApiKey"
 }
 
-# === Obtener datos desde Rumble y forzar JSON parsing
-$responseString = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop | Out-String
-$response = $responseString | ConvertFrom-Json
-
-Write-Host "[+] Fetched asset information from the Rumble API"
-Write-Host "[DEBUG] Tipo de objeto después de parsing: $($response.GetType().FullName)"
+# === Obtener datos desde Rumble directamente como objeto
+try {
+    $response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop
+    Write-Host "[+] Fetched asset information from the Rumble API"
+    Write-Host "[DEBUG] Tipo de objeto después de parsing: $($response.GetType().FullName)"
+} catch {
+    Write-Error "[-] Error al obtener datos de Rumble: $_"
+    return
+}
 
 # === Firma para Log Analytics
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
     $xHeaders = "x-ms-date:" + $date
     $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
-
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
 
@@ -50,8 +52,7 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     $sha256.Key = $keyBytes
     $calculatedHash = $sha256.ComputeHash($bytesToHash)
     $encodedHash = [Convert]::ToBase64String($calculatedHash)
-    $authorization = 'SharedKey {0}:{1}' -f $customerId, $encodedHash
-    return $authorization
+    return 'SharedKey {0}:{1}' -f $customerId, $encodedHash
 }
 
 # === POST hacia Log Analytics
@@ -90,7 +91,6 @@ foreach ($obj in $response) {
         $statusCode = Post-LogAnalyticsData $workspaceId $workspaceKey $jsonBody $logType
         Write-Host "[Batch enviado] Registros: $($currentBatch.Count), Size: $currentSize bytes, Status: $statusCode"
         $totalSent += $currentBatch.Count
-
         $currentBatch = @()
         $currentSize = 0
         Start-Sleep -Milliseconds 500
@@ -118,4 +118,3 @@ if ($statusCode -eq 200) {
 
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function finished at: $currentUTCtime"
-
