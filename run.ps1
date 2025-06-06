@@ -90,42 +90,51 @@ Write-Host $response
 
 $responseObjects = $response | ConvertFrom-Json -AsHashtable
 
-# Tamaño máximo por lote (en bytes). Aquí 30 MB.
-$maxBatchSize = 30MB
+# Agrupa los objetos por site_name
+$groupedBySite = $responseObjects | Group-Object -Property site_name
 
-# Inicializa el batch
-$currentBatch = @()
-$currentSize = 0
+# Tamaño máximo por lote (en bytes). Aquí 2.5 MB.
+$maxBatchSize = 2.5MB
 
-foreach ($obj in $responseObjects) {
-    $json = $obj | ConvertTo-Json -Depth 100 -Compress
-    $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
+foreach ($siteGroup in $groupedBySite) {
+    $siteName = $siteGroup.Name
+    $assets = $siteGroup.Group
 
-    if (($currentSize + $size) -gt $maxBatchSize) {
-        # Si el batch actual ya está lleno, envíalo
-        $jsonBody = "[" + ($currentBatch -join ",") + "]"
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "    [Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+    Write-Host "[+] Procesando site_name: $siteName con $($assets.Count) assets"
 
-        Start-Sleep -Milliseconds 500  # pequeña pausa
+    # Inicializa el batch
+    $currentBatch = @()
+    $currentSize = 0
 
-        # Reinicia el batch
-        $currentBatch = @()
-        $currentSize = 0
+    foreach ($obj in $assets) {
+        $json = $obj | ConvertTo-Json -Depth 100 -Compress
+        $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
+
+        if (($currentSize + $size) -gt $maxBatchSize) {
+            # Si el batch actual ya está lleno, envíalo
+            $jsonBody = "[" + ($currentBatch -join ",") + "]"
+            $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+            Write-Host "    [Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+
+            Start-Sleep -Milliseconds 500  # pequeña pausa
+
+            # Reinicia el batch
+            $currentBatch = @()
+            $currentSize = 0
+        }
+
+        # Agrega el objeto al batch
+        $currentBatch += $json
+        $currentSize += $size
     }
 
-    # Agrega el objeto al batch
-    $currentBatch += $json
-    $currentSize += $size
+    # Enviar cualquier batch restante
+    if ($currentBatch.Count -gt 0) {
+        $jsonBody = "[" + ($currentBatch -join ",") + "]"
+        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+        Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+    }
 }
-
-# Enviar cualquier batch restante
-if ($currentBatch.Count -gt 0) {
-    $jsonBody = "[" + ($currentBatch -join ",") + "]"
-    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-    Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
-}
-
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
