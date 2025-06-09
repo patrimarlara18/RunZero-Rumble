@@ -100,7 +100,15 @@ foreach ($siteGroup in $groupedBySite) {
     $siteName = $siteGroup.Name
     $assets = $siteGroup.Group
 
+    if (-not $siteName -or $siteName.Trim() -eq "") {
+        Write-Host "[WARNING] site_name está vacío o nulo para este grupo con $($assets.Count) assets"
+    }
+
     Write-Host "[+] Procesando site_name: $siteName con $($assets.Count) assets"
+
+    # Mostrar ejemplo de asset
+    Write-Host "[DEBUG] Ejemplo de asset para $siteName:"
+    $assets[0] | ConvertTo-Json -Depth 5 | Write-Host
 
     # Inicializa el batch
     $currentBatch = @()
