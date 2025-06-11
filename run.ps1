@@ -1,156 +1,130 @@
 using namespace System.Net
 
-# Input bindings are passed in via param block.
 param($timer)
 
-# Check if the current function invocation is running later than scheduled
+# Comprueba si el timer está retrasado
 if ($timer.IsPastDue) {
     Write-Host "[-] PowerShell timer is running late"
 }
 
-# Log the function start time
+# Muestra el inicio de la ejecución en hora UTC
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
 
-# Get environment variables from the Azure Functions app
-$rumbleApiKey = $ENV:rumbleApiKey
-$workspaceId = $ENV:workspaceId
-$workspaceKey = $ENV:workspaceKey
+# Cargar variables de entorno necesarias para la API de RunZero y Azure Log Analytics
+$rumbleApiKey = $ENV:rumbleApiKey      # Token de acceso de RunZero
+$workspaceId = $ENV:workspaceId        # ID de Azure Log Analytics
+$workspaceKey = $ENV:workspaceKey      # Clave compartida para autenticación
 
 Write-Host "[DEBUG] rumbleApiKey: $rumbleApiKey"
 Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
-# Rumble assets export URI
-$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products'
+# Configuración para RunZero API
+$baseUri = 'https://console.runzero.com/api/v1.0/export/org/assets.json'
+$orgId = 'OT31AEC0F0575965E96E31B1A8D66B'  # ← Este valor lo obtienes desde el portal o te lo da soporte
+$pageSize = 100                      # Tamaño de página: cuántos assets traer por página
+$startKey = $null                    # Clave de paginación para continuar con el siguiente lote
 
-# Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
+# Parámetros para Log Analytics
 $logType = "RumbleAssets"
-
-# Optional value that specifies the name of the field denoting the time the data was generated
-# If unspecified, the Log Analytics Data Connector API assumes it was generated at ingestion time
 $timeGeneratedField = ""
 
-# Fetch asset information from the Rumble API
+# Cabeceras para la autenticación en RunZero
 $headers = @{
     Accept = 'application/json'
     Authorization = "Bearer $rumbleApiKey"
 }
-$response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop
-Write-Host "[+] Fetched asset information from the Rumble API"
-Write-Host "[DEBUG] Response object type: $($response.GetType().FullName)"
 
-# Helper function to build the authorization signature for the Log Analytics Data Connector API
-Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
-{
+# Función que construye la firma requerida por la API de Log Analytics
+Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
     $xHeaders = "x-ms-date:" + $date
     $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
-
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
-
     $sha256 = New-Object System.Security.Cryptography.HMACSHA256
     $sha256.Key = $keyBytes
     $calculatedHash = $sha256.ComputeHash($bytesToHash)
     $encodedHash = [Convert]::ToBase64String($calculatedHash)
-    $authorization = 'SharedKey {0}:{1}' -f $customerId,$encodedHash
-    return $authorization
+    return 'SharedKey {0}:{1}' -f $customerId, $encodedHash
 }
 
-# Helper function to build and invoke a POST request to the Log Analytics Data Connector API
-Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
-{
+# Función para enviar los datos a Azure Log Analytics
+Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
     $method = "POST"
     $contentType = "application/json"
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
     $contentLength = $body.Length
-    $signature = Build-Signature `
-        -customerId $customerId `
-        -sharedKey $sharedKey `
-        -date $rfc1123date `
-        -contentLength $contentLength `
-        -method $method `
-        -contentType $contentType `
-        -resource $resource
+    $signature = Build-Signature -customerId $customerId -sharedKey $sharedKey -date $rfc1123date -contentLength $contentLength -method $method -contentType $contentType -resource $resource
 
-    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
+    $uri = "https://${customerId}.ods.opinsights.azure.com$resource?api-version=2016-04-01"
     $headers = @{
-        "Authorization" = $signature;
-        "Log-Type" = $logType;
-        "x-ms-date" = $rfc1123date;
-        "time-generated-field" = $timeGeneratedField;
+        "Authorization" = $signature
+        "Log-Type" = $logType
+        "x-ms-date" = $rfc1123date
+        "time-generated-field" = $timeGeneratedField
     }
 
     $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
     return $response.StatusCode
 }
 
-Write-Host $response
-
-$responseObjects = $response | ConvertFrom-Json -AsHashtable
-
-# Agrupa los objetos por site_name
-$groupedBySite = $responseObjects | Group-Object -Property site_name
-
-# Tamaño máximo por lote (en bytes). Aquí 2.5 MB.
+# Lógica para paginar los resultados y enviarlos en bloques (batches) de tamaño máximo
 $maxBatchSize = 2.5MB
+$currentBatch = @()
+$currentSize = 0
 
-foreach ($siteGroup in $groupedBySite) {
-    $siteName = $siteGroup.Name
-    $assets = $siteGroup.Group
-
-    if (-not $siteName -or $siteName.Trim() -eq "") {
-        Write-Host "[WARNING] site_name está vacío o nulo para este grupo con $($assets.Count) assets"
+do {
+    # Construir la URL con parámetros de paginación
+    $uri = "$baseUri?_oid=$orgId&page_size=$pageSize"
+    if ($startKey) {
+        $uri += "&start_key=$startKey"
     }
 
-    Write-Host "[+] Procesando site_name: $siteName con $($assets.Count) assets"
+    # Obtener la página actual de resultados
+    $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
+    Write-Host "[+] Fetched page of asset data"
 
-    # Mostrar ejemplo de asset
-    Write-Host "[DEBUG] Ejemplo de asset para $siteName:"
-    $assets[0] | ConvertTo-Json -Depth 5 | Write-Host
+    $assets = $response.assets         # Extraer array de assets
+    $startKey = $response.next_key     # Guardar el start_key para la próxima página
 
-    # Inicializa el batch
-    $currentBatch = @()
-    $currentSize = 0
-
+    # Procesar cada asset individualmente
     foreach ($obj in $assets) {
         $json = $obj | ConvertTo-Json -Depth 100 -Compress
         $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
 
+        # Si el tamaño supera el límite permitido, se envía el batch actual
         if (($currentSize + $size) -gt $maxBatchSize) {
-            # Si el batch actual ya está lleno, envíalo
             $jsonBody = "[" + ($currentBatch -join ",") + "]"
             $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-            Write-Host "    [Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+            Write-Host "[Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
+            Start-Sleep -Milliseconds 500
 
-            Start-Sleep -Milliseconds 500  # pequeña pausa
-
-            # Reinicia el batch
             $currentBatch = @()
             $currentSize = 0
         }
 
-        # Agrega el objeto al batch
         $currentBatch += $json
         $currentSize += $size
     }
 
-    # Enviar cualquier batch restante
-    if ($currentBatch.Count -gt 0) {
-        $jsonBody = "[" + ($currentBatch -join ",") + "]"
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
-    }
+} while ($startKey)  # Continuar mientras haya más páginas
+
+# Enviar el último batch restante si hay
+if ($currentBatch.Count -gt 0) {
+    $jsonBody = "[" + ($currentBatch -join ",") + "]"
+    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+    Write-Host "[Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
 }
 
-# Check the status of the POST request
-if ($statusCode -eq 200){
+# Verifica el resultado final
+if ($statusCode -eq 200) {
     Write-Host "[+] Successfully sent POST request to the Log Analytics API"
 } else {
     Write-Host "[-] Failed to send POST request to the Log Analytics API with status code: $statusCode"
 }
 
-# Log the function end time
+# Muestra el final de la ejecución
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function finished at: $currentUTCtime"
