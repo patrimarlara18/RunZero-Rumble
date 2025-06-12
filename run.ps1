@@ -22,7 +22,7 @@ Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
 # Configuración inicial
-$baseUrl = 'https://console.rumble.run/api/v1.0/export/org/assets.json'
+$baseUrl = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products'
 $orgId = '73882991-7869-40f0-903a-a617405dca48'
 $pageSize = 100
 $startKey = $null
@@ -72,7 +72,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
 }
 
 do {
-    $uri = "$baseUrl?_oid=$orgId&page_size=$pageSize"
+    $uri = "https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products?_oid=$orgId&page_size=$pageSize"
     if ($startKey) {
         $uri += "&start_key=$startKey"
     }
