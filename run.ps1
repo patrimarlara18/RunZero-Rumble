@@ -20,11 +20,21 @@ Write-Host "[DEBUG] rumbleApiKey: $rumbleApiKey"
 Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
+# Validación básica
+if (-not $rumbleApiKey -or -not $workspaceId -or -not $workspaceKey) {
+    throw "❌ ERROR: Variables de entorno faltantes o vacías. Verifica rumbleApiKey, workspaceId y workspaceKey."
+}
+
 # Configuración para RunZero API
 $baseUri = 'https://console.runzero.com/api/v1.0/export/org/assets.json'
 $orgId = '73882991-7869-40f0-903a-a617405dca48'  # ← Este valor lo obtienes desde el portal o te lo da soporte
 $pageSize = 100                      # Tamaño de página: cuántos assets traer por página
 $startKey = $null                    # Clave de paginación para continuar con el siguiente lote
+
+# Validar URI base y orgId
+if (-not $baseUri -or -not $orgId) {
+    throw "❌ ERROR: baseUri u orgId no están definidos correctamente."
+}
 
 # Parámetros para Log Analytics
 $logType = "RumbleAssets"
@@ -59,6 +69,9 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
     $signature = Build-Signature -customerId $customerId -sharedKey $sharedKey -date $rfc1123date -contentLength $contentLength -method $method -contentType $contentType -resource $resource
 
     $uri = "https://${customerId}.ods.opinsights.azure.com$resource?api-version=2016-04-01"
+
+    Write-Host "[DEBUG] Enviando datos a Log Analytics URI: $uri"
+
     $headers = @{
         "Authorization" = $signature
         "Log-Type" = $logType
@@ -82,9 +95,17 @@ do {
         $uri += "&start_key=$startKey"
     }
 
-    # Obtener la página actual de resultados
-    $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
-    Write-Host "[+] Fetched page of asset data"
+    Write-Host "[DEBUG] URI construida: $uri"
+
+    try {
+        # Obtener la página actual de resultados
+        $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
+        Write-Host "[+] Fetched page of asset data"
+    }
+    catch {
+        Write-Error "❌ ERROR en la llamada a RunZero: $($_.Exception.Message)"
+        break
+    }
 
     $assets = $response.assets         # Extraer array de assets
     $startKey = $response.next_key     # Guardar el start_key para la próxima página
