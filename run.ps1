@@ -1,87 +1,13 @@
-using namespace System.Net
-
-param($timer)
-
-# Comprueba si el timer está retrasado
-if ($timer.IsPastDue) {
-    Write-Host "[-] PowerShell timer is running late"
-}
-
-# Muestra el inicio de la ejecución en hora UTC
-$currentUTCtime = (Get-Date).ToUniversalTime()
-Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
-
-# Cargar variables de entorno necesarias para la API de RunZero y Azure Log Analytics
-$rumbleApiKey = $ENV:rumbleApiKey      # Token de acceso de RunZero
-$workspaceId = $ENV:workspaceId        # ID de Azure Log Analytics
-$workspaceKey = $ENV:workspaceKey      # Clave compartida para autenticación
-
-Write-Host "[DEBUG] rumbleApiKey: $rumbleApiKey"
-Write-Host "[DEBUG] workspaceId: $workspaceId"
-Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
-
-# Validación básica
-if (-not $rumbleApiKey -or -not $workspaceId -or -not $workspaceKey) {
-    throw "❌ ERROR: Variables de entorno faltantes o vacías. Verifica rumbleApiKey, workspaceId y workspaceKey."
-}
-
-# Configuración para RunZero API
-$baseUri = 'https://console.runzero.com/api/v1.0/export/org/assets.json'
-$orgId = '73882991-7869-40f0-903a-a617405dca48'  # ← Este valor lo obtienes desde el portal o te lo da soporte
-$pageSize = 100                      # Tamaño de página: cuántos assets traer por página
-$startKey = $null                    # Clave de paginación para continuar con el siguiente lote
+# ... [Todo lo anterior igual]
 
 # Validar URI base y orgId
 if (-not $baseUri -or -not $orgId) {
     throw "❌ ERROR: baseUri u orgId no están definidos correctamente."
 }
 
-# Parámetros para Log Analytics
-$logType = "RumbleAssets"
-$timeGeneratedField = ""
-
-# Cabeceras para la autenticación en RunZero
-$headers = @{
-    Accept = 'application/json'
-    Authorization = "Bearer $rumbleApiKey"
-}
-
-# Función que construye la firma requerida por la API de Log Analytics
-Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
-    $xHeaders = "x-ms-date:" + $date
-    $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
-    $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
-    $keyBytes = [Convert]::FromBase64String($sharedKey)
-    $sha256 = New-Object System.Security.Cryptography.HMACSHA256
-    $sha256.Key = $keyBytes
-    $calculatedHash = $sha256.ComputeHash($bytesToHash)
-    $encodedHash = [Convert]::ToBase64String($calculatedHash)
-    return 'SharedKey {0}:{1}' -f $customerId, $encodedHash
-}
-
-# Función para enviar los datos a Azure Log Analytics
-Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
-    $method = "POST"
-    $contentType = "application/json"
-    $resource = "/api/logs"
-    $rfc1123date = [DateTime]::UtcNow.ToString("r")
-    $contentLength = $body.Length
-    $signature = Build-Signature -customerId $customerId -sharedKey $sharedKey -date $rfc1123date -contentLength $contentLength -method $method -contentType $contentType -resource $resource
-
-    $uri = "https://${customerId}.ods.opinsights.azure.com$resource?api-version=2016-04-01"
-
-    Write-Host "[DEBUG] Enviando datos a Log Analytics URI: $uri"
-
-    $headers = @{
-        "Authorization" = $signature
-        "Log-Type" = $logType
-        "x-ms-date" = $rfc1123date
-        "time-generated-field" = $timeGeneratedField
-    }
-
-    $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
-    return $response.StatusCode
-}
+# Asegura que no hay espacios ocultos o caracteres invisibles
+$baseUri = $baseUri.Trim()
+$orgId = $orgId.Trim()
 
 # Lógica para paginar los resultados y enviarlos en bloques (batches) de tamaño máximo
 $maxBatchSize = 2.5MB
