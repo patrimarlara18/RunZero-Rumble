@@ -72,7 +72,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
 }
 
 do {
-    $uri = "https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products?_oid=$orgId&page_size=$pageSize"
+    $uri = "https://console.rumble.run/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products&page_size=$pageSize"
     if ($startKey) {
         $uri += "&start_key=$startKey"
     }
