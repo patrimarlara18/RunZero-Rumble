@@ -22,7 +22,7 @@ Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
 # Configuración para RunZero API
 $baseUri = 'https://console.runzero.com/api/v1.0/export/org/assets.json'
-$orgId = 73882991-7869-40f0-903a-a617405dca48  # ← Este valor lo obtienes desde el portal o te lo da soporte
+$orgId = '73882991-7869-40f0-903a-a617405dca48'  # ← Este valor lo obtienes desde el portal o te lo da soporte
 $pageSize = 100                      # Tamaño de página: cuántos assets traer por página
 $startKey = $null                    # Clave de paginación para continuar con el siguiente lote
 
