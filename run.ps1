@@ -98,7 +98,10 @@ do {
         Write-Host "[+] Enviado lote de $($jsonObjects.Count) assets con status: $statusCode"
 
         # Obtener next_key si existe
-        $startKey = $response.PSObject.Properties['next_key']?.Value
+        $startKey = $null
+if ($response.PSObject.Properties.Name -contains 'next_key') {
+    $startKey = $response.next_key
+}
 
     } catch {
         Write-Error "❌ ERROR en la llamada a RunZero o Log Analytics: $($_.Exception.Message)"
