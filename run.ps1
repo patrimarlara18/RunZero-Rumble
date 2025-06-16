@@ -3,39 +3,42 @@ using namespace System.Net
 # Input bindings are passed in via param block.
 param($timer)
 
-# Comprueba si el timer está retrasado
+# Check if the current function invocation is running later than scheduled
 if ($timer.IsPastDue) {
     Write-Host "[-] PowerShell timer is running late"
 }
 
-# Muestra el inicio de la ejecución en hora UTC
+# Log the function start time
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
 
-# Cargar variables de entorno necesarias para la API de RunZero y Azure Log Analytics
+# Get environment variables from the Azure Functions app
 $rumbleApiKey = $ENV:rumbleApiKey
 $workspaceId = $ENV:workspaceId
 $workspaceKey = $ENV:workspaceKey
-
-# Verificar que las variables están definidas
-if (-not $rumbleApiKey -or -not $workspaceId -or -not $workspaceKey) {
-    throw "❌ Faltan variables de entorno requeridas (rumbleApiKey, workspaceId o workspaceKey)."
-}
 
 Write-Host "[DEBUG] rumbleApiKey: $rumbleApiKey"
 Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
 
-# Configuración inicial
+# Initial Configuration
 $baseUrl = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products'
 $orgId = '73882991-7869-40f0-903a-a617405dca48'
 $pageSize = 100
 $startKey = $null
+
+# Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
 $logType = "RumbleAssets"
 
-Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
+# Optional value that specifies the name of the field denoting the time the data was generated
+# If unspecified, the Log Analytics Data Connector API assumes it was generated at ingestion time
+$timeGeneratedField = "updated_at"
+
+# Helper function to build the authorization signature for the Log Analytics Data Connector API
+Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
+{
     $xHeaders = "x-ms-date:" + $date
-    $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
+    $stringToHash = $method + "`n" + $contentLength + "`n" + $contentType + "`n" + $xHeaders + "`n" + $resource
 
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
@@ -48,7 +51,9 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     return $authorization
 }
 
-Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
+# Helper function to build and invoke a POST request to the Log Analytics Data Connector API
+Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
+{
     $method = "POST"
     $contentType = "application/json"
     $resource = "/api/logs"
@@ -62,7 +67,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
         -method $method `
         -contentType $contentType `
         -resource $resource
-
+    
     $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
 
     $headers = @{
@@ -71,16 +76,12 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
         "x-ms-date" = $rfc1123date;
     }
 
-    try {
-        $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
-        if ($response.StatusCode -ne 200 -and $response.StatusCode -ne 202) {
-            Write-Error "❌ Error enviando datos a Log Analytics. Status: $($response.StatusCode), Body: $($response.Content)"
-        }
-        return $response.StatusCode
-    } catch {
-        Write-Error "❌ Excepción al enviar datos a Log Analytics: $($_.Exception.Message)"
-        return -1
+    if ($timeGeneratedField) {
+        $headers["time-generated-field"] = $timeGeneratedField
     }
+
+    $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
+    return $response.StatusCode
 }
 
 do {
@@ -125,6 +126,6 @@ do {
 
 } while ($startKey)
 
-# Fin de la ejecución
+# Log the function end time
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function finished at: $currentUTCtime"
