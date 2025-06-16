@@ -17,22 +17,23 @@ $rumbleApiKey = $ENV:rumbleApiKey
 $workspaceId = $ENV:workspaceId
 $workspaceKey = $ENV:workspaceKey
 
-Write-Host "[DEBUG] rumbleApiKey: $rumbleApiKey"
-Write-Host "[DEBUG] workspaceId: $workspaceId"
-Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
-
-# Initial Configuration
-$baseUrl = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products'
-$orgId = '73882991-7869-40f0-903a-a617405dca48'
-$pageSize = 100
-$startKey = $null
+# Rumble assets export URI
+$rumbleAssetsUri = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products'
 
 # Name of the custom Log Analytics table upon which the Log Analytics Data Connector API will append '_CL'
-$logType = "RumbleAssets"
+$logType = "RumbleAssets" 
 
 # Optional value that specifies the name of the field denoting the time the data was generated
 # If unspecified, the Log Analytics Data Connector API assumes it was generated at ingestion time
-$timeGeneratedField = "updated_at"
+$timeGeneratedField = ""
+
+# Fetch asset information from the Rumble API
+$headers = @{
+    Accept = 'application/json'
+    Authorization = "Bearer $rumbleApiKey"
+}
+$response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop
+Write-Host "[+] Fetched asset information from the Rumble API"
 
 # Helper function to build the authorization signature for the Log Analytics Data Connector API
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
@@ -74,57 +75,25 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
         "Authorization" = $signature;
         "Log-Type" = $logType;
         "x-ms-date" = $rfc1123date;
-    }
-
-    if ($timeGeneratedField) {
-        $headers["time-generated-field"] = $timeGeneratedField
+        "time-generated-field" = $timeGeneratedField;
     }
 
     $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
     return $response.StatusCode
 }
 
-do {
-    $uri = "https://console.rumble.run/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products&page_size=$pageSize"
-    if ($startKey) {
-        $uri += "&start_key=$startKey"
-    }
+# Convert the Rumble Asset information to JSON
+$json = $response | ConvertTo-Json -Depth 3
 
-    Write-Host "[DEBUG] URI construida: $uri"
+# POST the Rumble asset information to the Log Analytics Data Connector API
+$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $json -logType $logType
 
-    $headers = @{
-        Accept = 'application/json'
-        Authorization = "Bearer $rumbleApiKey"
-    }
-
-    try {
-        $response = Invoke-RestMethod -Method 'Get' -Uri $uri -Headers $headers -ErrorAction Stop
-        Write-Host "[+] Fetched asset information from the Rumble API"
-
-        # Convertir en array (aunque venga 1 solo objeto)
-        $jsonObjects = if ($response -is [System.Collections.IEnumerable]) { $response } else { @($response) }
-
-        # Convertir todos los objetos en un único array JSON para envío por lote
-        $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
-
-        # Validación opcional de salida
-        Write-Host "[DEBUG] JSON generado para Log Analytics: $($jsonBody.Substring(0, [Math]::Min($jsonBody.Length, 500)))..."
-
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "[+] Enviado lote de $($jsonObjects.Count) assets con status: $statusCode"
-
-        # Obtener next_key si existe
-        $startKey = $null
-        if ($response.PSObject.Properties.Name -contains 'next_key') {
-            $startKey = $response.next_key
-        }
-
-    } catch {
-        Write-Error "❌ ERROR en la llamada a RunZero o Log Analytics: $($_.Exception.Message)"
-        break
-    }
-
-} while ($startKey)
+# Check the status of the POST request
+if ($statusCode -eq 200){
+    Write-Host "[+] Successfully sent POST request to the Log Analytics API"
+} else {
+    Write-Host "[-] Failed to send POST request to the Log Analytics API with status code: $statusCode"
+}
 
 # Log the function end time
 $currentUTCtime = (Get-Date).ToUniversalTime()
