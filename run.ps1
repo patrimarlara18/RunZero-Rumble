@@ -17,6 +17,11 @@ $rumbleApiKey = $ENV:rumbleApiKey
 $workspaceId = $ENV:workspaceId
 $workspaceKey = $ENV:workspaceKey
 
+# Verificar que las variables están definidas
+if (-not $rumbleApiKey -or -not $workspaceId -or -not $workspaceKey) {
+    throw "❌ Faltan variables de entorno requeridas (rumbleApiKey, workspaceId o workspaceKey)."
+}
+
 Write-Host "[DEBUG] rumbleApiKey: $rumbleApiKey"
 Write-Host "[DEBUG] workspaceId: $workspaceId"
 Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
@@ -27,7 +32,6 @@ $orgId = '73882991-7869-40f0-903a-a617405dca48'
 $pageSize = 100
 $startKey = $null
 $logType = "RumbleAssets"
-$timeGeneratedField = ""
 
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
     $xHeaders = "x-ms-date:" + $date
@@ -59,17 +63,24 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
         -contentType $contentType `
         -resource $resource
 
-   $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
+    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
 
     $headers = @{
         "Authorization" = $signature;
         "Log-Type" = $logType;
         "x-ms-date" = $rfc1123date;
-        "time-generated-field" = $timeGeneratedField;
     }
 
-    $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
-    return $response.StatusCode
+    try {
+        $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
+        if ($response.StatusCode -ne 200 -and $response.StatusCode -ne 202) {
+            Write-Error "❌ Error enviando datos a Log Analytics. Status: $($response.StatusCode), Body: $($response.Content)"
+        }
+        return $response.StatusCode
+    } catch {
+        Write-Error "❌ Excepción al enviar datos a Log Analytics: $($_.Exception.Message)"
+        return -1
+    }
 }
 
 do {
@@ -95,14 +106,17 @@ do {
         # Convertir todos los objetos en un único array JSON para envío por lote
         $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
 
+        # Validación opcional de salida
+        Write-Host "[DEBUG] JSON generado para Log Analytics: $($jsonBody.Substring(0, [Math]::Min($jsonBody.Length, 500)))..."
+
         $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
         Write-Host "[+] Enviado lote de $($jsonObjects.Count) assets con status: $statusCode"
 
         # Obtener next_key si existe
         $startKey = $null
-if ($response.PSObject.Properties.Name -contains 'next_key') {
-    $startKey = $response.next_key
-}
+        if ($response.PSObject.Properties.Name -contains 'next_key') {
+            $startKey = $response.next_key
+        }
 
     } catch {
         Write-Error "❌ ERROR en la llamada a RunZero o Log Analytics: $($_.Exception.Message)"
