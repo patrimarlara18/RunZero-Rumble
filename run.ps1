@@ -82,11 +82,30 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     return $response.StatusCode
 }
 
-# Convert the Rumble Asset information to JSON
-$json = $response | ConvertTo-Json -Depth 3
+# Break into smaller batches to avoid exceeding size limits
+$batchSize = 500
+$response.Count | Out-Null  # force enumeration in case of single item
 
-# POST the Rumble asset information to the Log Analytics Data Connector API
-$statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $json -logType $logType
+for ($i = 0; $i -lt $response.Count; $i += $batchSize) {
+    $batch = $response[$i..([Math]::Min($i + $batchSize - 1, $response.Count - 1))]
+    $jsonBody = $batch | ConvertTo-Json -Depth 10
+
+    # Validate JSON size
+    if ($jsonBody.Length -gt 25MB) {
+        Write-Host "[-] Batch too large, skipping this batch"
+        continue
+    }
+
+    Write-Host "[+] Sending batch $($i + 1)-$([Math]::Min($i + $batchSize, $response.Count))"
+    $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
+
+    if ($statusCode -eq 200){
+        Write-Host "[+] Successfully sent batch"
+    } else {
+        Write-Host "[-] Failed to send batch with status code: $statusCode"
+    }
+}
+
 
 # Check the status of the POST request
 if ($statusCode -eq 200){
