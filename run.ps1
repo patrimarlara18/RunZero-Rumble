@@ -1,42 +1,31 @@
 using namespace System.Net
 
-# Input bindings are passed in via param block.
 param($timer)
 
-# Comprueba si el timer está retrasado
 if ($timer.IsPastDue) {
     Write-Host "[-] PowerShell timer is running late"
 }
 
-# Muestra el inicio de la ejecución en hora UTC
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
 
-# Cargar variables de entorno necesarias para la API de RunZero y Azure Log Analytics
+# Variables de entorno necesarias
 $rumbleApiKey = $ENV:rumbleApiKey
 $workspaceId = $ENV:workspaceId
 $workspaceKey = $ENV:workspaceKey
 
-# Verificar que las variables están definidas
-if (-not $rumbleApiKey -or -not $workspaceId -or -not $workspaceKey) {
-    throw "❌ Faltan variables de entorno requeridas (rumbleApiKey, workspaceId o workspaceKey)."
-}
-
-Write-Host "[DEBUG] rumbleApiKey: $rumbleApiKey"
-Write-Host "[DEBUG] workspaceId: $workspaceId"
-Write-Host "[DEBUG] workspaceKey length: $($workspaceKey.Length)"
-
-# Configuración inicial
-$baseUrl = 'https://console.rumble.run/api/v1.0/export/org/assets.json?fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products'
+# Configuraciones
 $orgId = '73882991-7869-40f0-903a-a617405dca48'
+$fields = "id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products"
 $pageSize = 100
-$startKey = $null
 $logType = "RumbleAssets"
+$timeGeneratedField = ""
+$baseUri = "https://console.runzero.com/api/v1.0/export/org/assets.json"
 
+# Función para construir firma
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
     $xHeaders = "x-ms-date:" + $date
     $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
-
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
 
@@ -44,52 +33,41 @@ Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $metho
     $sha256.Key = $keyBytes
     $calculatedHash = $sha256.ComputeHash($bytesToHash)
     $encodedHash = [Convert]::ToBase64String($calculatedHash)
-    $authorization = 'SharedKey {0}:{1}' -f $customerId,$encodedHash
-    return $authorization
+    return "SharedKey $customerId:$encodedHash"
 }
 
+# Función para enviar datos a Log Analytics
 Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
     $method = "POST"
     $contentType = "application/json"
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
     $contentLength = $body.Length
-    $signature = Build-Signature `
-        -customerId $customerId `
-        -sharedKey $sharedKey `
-        -date $rfc1123date `
-        -contentLength $contentLength `
-        -method $method `
-        -contentType $contentType `
-        -resource $resource
 
-    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
+    $signature = Build-Signature $customerId $sharedKey $rfc1123date $contentLength $method $contentType $resource
+    $uri = "https://$customerId.ods.opinsights.azure.com$resource?api-version=2016-04-01"
 
     $headers = @{
-        "Authorization" = $signature;
-        "Log-Type" = $logType;
-        "x-ms-date" = $rfc1123date;
+        "Authorization" = $signature
+        "Log-Type" = $logType
+        "x-ms-date" = $rfc1123date
+        "time-generated-field" = $timeGeneratedField
     }
 
-    try {
-        $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
-        if ($response.StatusCode -ne 200 -and $response.StatusCode -ne 202) {
-            Write-Error "❌ Error enviando datos a Log Analytics. Status: $($response.StatusCode), Body: $($response.Content)"
-        }
-        return $response.StatusCode
-    } catch {
-        Write-Error "❌ Excepción al enviar datos a Log Analytics: $($_.Exception.Message)"
-        return -1
-    }
+    $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
+    return $response.StatusCode
 }
 
-do {
-    $uri = "https://console.rumble.run/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id,updated_at,site_name,alive,names,addresses,type,os,hw,service_ports_tcp,service_ports_udp,service_protocols,service_products&page_size=$pageSize"
-    if ($startKey) {
-        $uri += "&start_key=$startKey"
-    }
+# Loop de paginación
+$startKey = $null
 
-    Write-Host "[DEBUG] URI construida: $uri"
+do {
+    $queryParams = "_oid=$orgId&fields=$fields&page_size=$pageSize"
+    if ($searchParam) { $queryParams += "&$searchParam" }
+    if ($startKey) { $queryParams += "&start_key=$startKey" }
+
+    $requestUri = "$baseUri?$queryParams"
+    Write-Host "[DEBUG] Request URI: $requestUri"
 
     $headers = @{
         Accept = 'application/json'
@@ -97,27 +75,28 @@ do {
     }
 
     try {
-        $response = Invoke-RestMethod -Method 'Get' -Uri $uri -Headers $headers -ErrorAction Stop
-        Write-Host "[+] Fetched asset information from the Rumble API"
+        $response = Invoke-RestMethod -Method 'GET' -Uri $requestUri -Headers $headers -ErrorAction Stop
+        Write-Host "[+] Fetched a page of assets from the Rumble API"
 
-        # Convertir en array (aunque venga 1 solo objeto)
-        $jsonObjects = if ($response -is [System.Collections.IEnumerable]) { $response } else { @($response) }
-
-        # Convertir todos los objetos en un único array JSON para envío por lote
-        $jsonBody = $jsonObjects | ConvertTo-Json -Depth 100
-
-        # Validación opcional de salida
-        Write-Host "[DEBUG] JSON generado para Log Analytics: $($jsonBody.Substring(0, [Math]::Min($jsonBody.Length, 500)))..."
-
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
-        Write-Host "[+] Enviado lote de $($jsonObjects.Count) assets con status: $statusCode"
-
-        # Obtener next_key si existe
-        $startKey = $null
-        if ($response.PSObject.Properties.Name -contains 'next_key') {
-            $startKey = $response.next_key
+        # Acceder al campo 'assets'
+        $assets = $response.assets
+        if (-not $assets) {
+            Write-Host "[-] No assets found in response"
+            break
         }
 
+        # Serializar directamente los assets (sin convertir el objeto completo de nuevo)
+        $jsonBody = $assets | ConvertTo-Json -Depth 10 -Compress
+        
+        Write-Host $assets
+        Write-Host $jsonBody
+
+        # Enviar a Log Analytics
+        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body ([System.Text.Encoding]::UTF8.GetBytes($jsonBody)) -logType $logType
+        Write-Host "[+] Enviado lote con código: $statusCode"
+
+        # Siguiente página
+        $startKey = if ($response.PSObject.Properties.Name -contains "next_key") { $response.next_key } else { $null }
     } catch {
         Write-Error "❌ ERROR en la llamada a RunZero o Log Analytics: $($_.Exception.Message)"
         break
@@ -125,6 +104,5 @@ do {
 
 } while ($startKey)
 
-# Fin de la ejecución
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function finished at: $currentUTCtime"
