@@ -109,7 +109,7 @@ do {
         # Validación opcional de salida
         Write-Host "[DEBUG] JSON generado para Log Analytics: $($jsonBody.Substring(0, [Math]::Min($jsonBody.Length, 500)))..."
 
-        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonObjects -logType $logType
+        $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
         Write-Host "[+] Enviado lote de $($jsonObjects.Count) assets con status: $statusCode"
 
         # Obtener next_key si existe
