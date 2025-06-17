@@ -62,7 +62,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
         -contentType $contentType `
         -resource $resource
 
-    $uri = "https://$customerId.ods.opinsights.azure.com$resource?api-version=2016-04-01"
+   $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
 
     $headers = @{
         "Authorization" = $signature;
