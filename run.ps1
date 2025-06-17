@@ -10,9 +10,10 @@ $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
 
 # Variables de entorno necesarias
-$rumbleApiKey = $ENV:rumbleApiKey
-$workspaceId = $ENV:workspaceId
-$workspaceKey = $ENV:workspaceKey
+$rumbleApiKey = ${ENV:rumbleApiKey}
+$workspaceId = ${ENV:workspaceId}
+$workspaceKey = ${ENV:workspaceKey}
+
 
 # Configuraciones
 $orgId = '73882991-7869-40f0-903a-a617405dca48'
