@@ -1,18 +1,21 @@
 using namespace System.Net
 
-param($timer)
+param(
+    [Parameter(Mandatory = $true)]
+    [object] $Timer
+)
 
-if ($timer.IsPastDue) {
-    Write-Host "[-] PowerShell timer is running late"
+if ($Timer.IsPastDue) {
+    Write-Host "[-] Timer is running late"
 }
 
 $currentUTCtime = (Get-Date).ToUniversalTime()
 Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
 
 # Variables de entorno necesarias
-$rumbleApiKey = ${ENV:rumbleApiKey}
-$workspaceId = ${ENV:workspaceId}
-$workspaceKey = ${ENV:workspaceKey}
+$rumbleApiKey = $env:rumbleApiKey
+$workspaceId = $env:workspaceId
+$workspaceKey = $env:workspaceKey
 
 
 # Configuraciones
