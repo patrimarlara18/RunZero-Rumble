@@ -45,7 +45,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
     $contentLength = $body.Length
     $signature = Build-Signature $customerId $sharedKey $rfc1123date $contentLength $method $contentType $resource
-    $uri = "https://$customerId.ods.opinsights.azure.com$resource?api-version=2016-04-01"
+    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
     $headers = @{
         "Authorization" = $signature
         "Log-Type" = $logType
