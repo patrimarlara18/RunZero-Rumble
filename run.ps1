@@ -71,16 +71,16 @@ do {
         # Convertir a array si es necesario
         $responseObjects = if ($response -is [System.Collections.IEnumerable]) { $response } else { @($response) }
 
-        # Filtrar por site_name = URUGUAY
-        $uruguayAssets = $responseObjects | Where-Object { $_.site_name -eq "URUGUAY" }
-        Write-Host "[+] Se encontraron $($uruguayAssets.Count) assets para URUGUAY en esta página."
+        # Filtrar por site_name = ARGENTINA
+        $argentinaAssets = $responseObjects | Where-Object { $_.site_name -eq "ARGENTINA" }
+        Write-Host "[+] Se encontraron $($argentinaAssets.Count) assets para ARGENTINA en esta página."
 
         # Envío por lotes
         $maxBatchSize = 2.5MB
         $currentBatch = @()
         $currentSize = 0
 
-        foreach ($obj in $uruguayAssets) {
+        foreach ($obj in $argentinaAssets) {
             $json = $obj | ConvertTo-Json -Depth 100 -Compress
             $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
 
