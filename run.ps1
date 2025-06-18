@@ -28,10 +28,10 @@ $headers = @{
 $response = Invoke-RestMethod -Method 'Get' -Uri $rumbleAssetsUri -Headers $headers -ErrorAction Stop
 $responseObjects = $response | ConvertFrom-Json -AsHashtable
 
-# Filtrar por site_name = ARGENTINA
-$argentinaAssets = $responseObjects | Where-Object { $_.site_name -eq "ARGENTINA" }
+# Filtrar por site_name = URUGUAY
+$argentinaAssets = $responseObjects | Where-Object { $_.site_name -eq "URUGUAY" }
 
-Write-Host "[+] Se encontraron $($argentinaAssets.Count) assets para ARGENTINA"
+Write-Host "[+] Se encontraron $($argentinaAssets.Count) assets para URUGUAY"
 
 # Función para firma de autenticación
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
