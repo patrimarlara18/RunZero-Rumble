@@ -1,5 +1,13 @@
 using namespace System.Net
 
+# Input bindings are passed in via param block.
+param($timer)
+
+# Check if the current function invocation is running later than scheduled
+if ($timer.IsPastDue) {
+    Write-Host "[-] PowerShell timer is running late"
+}
+
 # Parámetros de entorno (ajústalos según tu entorno o ponlos fijos)
 $rumbleApiKey = $ENV:rumbleApiKey
 $workspaceId = $ENV:workspaceId
