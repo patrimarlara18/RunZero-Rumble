@@ -27,7 +27,7 @@ $headers = @{
 # Función para firma
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
     $xHeaders = "x-ms-date:" + $date
-    $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
+    $stringToHash = "$methodn$contentLengthn$contentTypen$xHeadersn$resource"
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
     $sha256 = New-Object System.Security.Cryptography.HMACSHA256
@@ -68,14 +68,8 @@ do {
     try {
         $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
 
-        # ✅ Extraer lista de assets correctamente
-        $responseObjects = @($response.data)
-
-        # ✅ Ver site_names únicos (opcional para debug)
-        $siteNames = $responseObjects | Select-Object -ExpandProperty site_name | Sort-Object -Unique
-        foreach ($site in $siteNames) {
-            Write-Host "  • Site: $site"
-        }
+        # Convertir a array si es necesario
+        $responseObjects = if ($response -is [System.Collections.IEnumerable]) { $response } else { @($response) }
 
         # Filtrar por site_name = ARGENTINA
         $argentinaAssets = $responseObjects | Where-Object { $_.site_name -eq "ARGENTINA" }
@@ -109,7 +103,7 @@ do {
             Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
         }
 
-        # ✅ Obtener siguiente start_key correctamente
+        # Obtener siguiente start_key
         $startKey = $null
         if ($response.PSObject.Properties.Name -contains 'next_key') {
             $startKey = $response.next_key
