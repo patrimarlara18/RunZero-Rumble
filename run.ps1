@@ -68,19 +68,11 @@ do {
     try {
         $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
 
-        # Convertir a array si es necesario
-        $responseObjects = if ($response -is [System.Collections.IEnumerable]) { $response } else { @($response) }
+        # Extraer array de assets correctamente
+        $responseObjects = $response.assets
 
-        # Mostrar todos los site_name encontrados
-        $responseObjects | ForEach-Object {
-            Write-Host "Site encontrado: '$($_.site_name)'"
-        }
-
-        # Filtrar por site_name que contenga "ARGENTINA", sin importar mayúsculas/minúsculas ni espacios
-        $argentinaAssets = $responseObjects | Where-Object {
-            $_.site_name -match 'ARGENTINA'
-        }
-
+        # Filtrar por site_name = ARGENTINA
+        $argentinaAssets = $responseObjects | Where-Object { $_.site_name -eq "ARGENTINA" }
         Write-Host "[+] Se encontraron $($argentinaAssets.Count) assets para ARGENTINA en esta página."
 
         # Envío por lotes
@@ -111,11 +103,10 @@ do {
             Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
         }
 
-        # Obtener siguiente start_key
+        # Obtener siguiente start_key si existe
         $startKey = $null
         if ($response.PSObject.Properties.Name -contains 'next_key') {
             $startKey = $response.next_key
-            Write-Host "[DEBUG] response.next_key: $startKey"
         }
 
     } catch {
