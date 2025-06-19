@@ -59,6 +59,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
 # Envío paginado
 do {
     $uri = "https://console.rumble.run/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products&page_size=$pageSize"
+    
     if ($startKey) {
         $uri += "&start_key=$startKey"
     }
@@ -67,17 +68,21 @@ do {
 
     try {
         $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
-        $assets = $response.assets
+        $assets = $response.assets  # ✅ Corrección: acceder al array de assets
 
-        Write-Host "[+] Se encontraron $($assets.Count) assets en esta página."
+        if (-not $assets) {
+            Write-Host "[+] Se encontraron 0 assets en esta página."
+        } else {
+            Write-Host "[+] Se encontraron $($assets.Count) assets en esta página."
+        }
 
         # Envío por lotes
         $maxBatchSize = 2.5MB
         $currentBatch = @()
         $currentSize = 0
 
-        foreach ($asset in $assets) {
-            $json = $asset | ConvertTo-Json -Depth 100 -Compress
+        foreach ($obj in $assets) {
+            $json = $obj | ConvertTo-Json -Depth 100 -Compress
             $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
 
             if (($currentSize + $size) -gt $maxBatchSize) {
@@ -99,12 +104,8 @@ do {
             Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
         }
 
-        # Paginar si hay más
-        $startKey = if ($response.PSObject.Properties.Name -contains 'next_key') {
-            $response.next_key
-        } else {
-            $null
-        }
+        # Paginación
+        $startKey = if ($response.PSObject.Properties.Name -contains 'next_key') { $response.next_key } else { $null }
 
     } catch {
         Write-Error "❌ ERROR: $($_.Exception.Message)"
