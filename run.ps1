@@ -67,21 +67,17 @@ do {
 
     try {
         $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
+        $assets = $response.assets
 
-        # Extraer array de assets correctamente
-        $responseObjects = $response.assets
-
-        # Filtrar por site_name = ARGENTINA
-        $argentinaAssets = $responseObjects | Where-Object { $_.site_name -eq "ARGENTINA" }
-        Write-Host "[+] Se encontraron $($argentinaAssets.Count) assets para ARGENTINA en esta página."
+        Write-Host "[+] Se encontraron $($assets.Count) assets en esta página."
 
         # Envío por lotes
         $maxBatchSize = 2.5MB
         $currentBatch = @()
         $currentSize = 0
 
-        foreach ($obj in $argentinaAssets) {
-            $json = $obj | ConvertTo-Json -Depth 100 -Compress
+        foreach ($asset in $assets) {
+            $json = $asset | ConvertTo-Json -Depth 100 -Compress
             $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
 
             if (($currentSize + $size) -gt $maxBatchSize) {
@@ -103,10 +99,11 @@ do {
             Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
         }
 
-        # Obtener siguiente start_key si existe
-        $startKey = $null
-        if ($response.PSObject.Properties.Name -contains 'next_key') {
-            $startKey = $response.next_key
+        # Paginar si hay más
+        $startKey = if ($response.PSObject.Properties.Name -contains 'next_key') {
+            $response.next_key
+        } else {
+            $null
         }
 
     } catch {
@@ -117,4 +114,3 @@ do {
 } while ($startKey)
 
 Write-Host "[+] Proceso finalizado"
-
