@@ -1,57 +1,78 @@
 using namespace System.Net
 
+# Input bindings are passed in via param block.
 param($timer)
 
+# Check if the current function invocation is running later than scheduled
 if ($timer.IsPastDue) {
     Write-Host "[-] PowerShell timer is running late"
 }
 
-# Parámetros de entorno
+# Log the function start time
+$currentUTCtime = (Get-Date).ToUniversalTime()
+Write-Host "[+] PowerShell timer trigger function started at: $currentUTCtime"
+
+# Get environment variables from the Azure Functions app
 $rumbleApiKey = $ENV:rumbleApiKey
 $workspaceId = $ENV:workspaceId
 $workspaceKey = $ENV:workspaceKey
 
-# Parámetros de API
+# Rumble assets export
 $orgId = '73882991-7869-40f0-903a-a617405dca48'
 $pageSize = 500
 $startKey = $null
 $logType = "RumbleAssets"
 $timeGeneratedField = ""
 
-# Headers
+# Fetch asset information from the Rumble API
 $headers = @{
     Accept = 'application/json'
     Authorization = "Bearer $rumbleApiKey"
 }
 
-# Función para firma
-Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
+
+# Helper function to build the authorization signature for the Log Analytics Data Connector API
+Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
+{
     $xHeaders = "x-ms-date:" + $date
-    $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
+    $stringToHash = $method + "`n" + $contentLength + "`n" + $contentType + "`n" + $xHeaders + "`n" + $resource
+
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
+
     $sha256 = New-Object System.Security.Cryptography.HMACSHA256
     $sha256.Key = $keyBytes
     $calculatedHash = $sha256.ComputeHash($bytesToHash)
     $encodedHash = [Convert]::ToBase64String($calculatedHash)
-    return 'SharedKey {0}:{1}' -f $customerId, $encodedHash
+    $authorization = 'SharedKey {0}:{1}' -f $customerId,$encodedHash
+    return $authorization
 }
 
-# Función para enviar datos
-Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
+# Helper function to build and invoke a POST request to the Log Analytics Data Connector API
+Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
+{
     $method = "POST"
     $contentType = "application/json"
     $resource = "/api/logs"
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
     $contentLength = $body.Length
-    $signature = Build-Signature $customerId $sharedKey $rfc1123date $contentLength $method $contentType $resource
-    $uri = "https://$customerId.ods.opinsights.azure.com$resource?api-version=2016-04-01"
+    $signature = Build-Signature `
+        -customerId $customerId `
+        -sharedKey $sharedKey `
+        -date $rfc1123date `
+        -contentLength $contentLength `
+        -method $method `
+        -contentType $contentType `
+        -resource $resource
+    
+    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
     $headers = @{
-        "Authorization" = $signature
-        "Log-Type" = $logType
-        "x-ms-date" = $rfc1123date
-        "time-generated-field" = $timeGeneratedField
+        "Authorization" = $signature;
+        "Log-Type" = $logType;
+        "x-ms-date" = $rfc1123date;
+        "time-generated-field" = $timeGeneratedField;
     }
+
     $response = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers -Body $body -UseBasicParsing
     return $response.StatusCode
 }
