@@ -27,7 +27,7 @@ $headers = @{
 # Función para firma
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource) {
     $xHeaders = "x-ms-date:" + $date
-    $stringToHash = "$methodn$contentLengthn$contentTypen$xHeadersn$resource"
+    $stringToHash = "$method`n$contentLength`n$contentType`n$xHeaders`n$resource"
     $bytesToHash = [Text.Encoding]::UTF8.GetBytes($stringToHash)
     $keyBytes = [Convert]::FromBase64String($sharedKey)
     $sha256 = New-Object System.Security.Cryptography.HMACSHA256
@@ -45,7 +45,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType) {
     $rfc1123date = [DateTime]::UtcNow.ToString("r")
     $contentLength = $body.Length
     $signature = Build-Signature $customerId $sharedKey $rfc1123date $contentLength $method $contentType $resource
-    $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
+    $uri = "https://$customerId.ods.opinsights.azure.com$resource?api-version=2016-04-01"
     $headers = @{
         "Authorization" = $signature
         "Log-Type" = $logType
@@ -71,8 +71,16 @@ do {
         # Convertir a array si es necesario
         $responseObjects = if ($response -is [System.Collections.IEnumerable]) { $response } else { @($response) }
 
-        # Filtrar por site_name = ARGENTINA
-        $argentinaAssets = $responseObjects | Where-Object { $_.site_name -eq "ARGENTINA" }
+        # Mostrar todos los site_name encontrados
+        $responseObjects | ForEach-Object {
+            Write-Host "Site encontrado: '$($_.site_name)'"
+        }
+
+        # Filtrar por site_name que contenga "ARGENTINA", sin importar mayúsculas/minúsculas ni espacios
+        $argentinaAssets = $responseObjects | Where-Object {
+            $_.site_name -match 'ARGENTINA'
+        }
+
         Write-Host "[+] Se encontraron $($argentinaAssets.Count) assets para ARGENTINA en esta página."
 
         # Envío por lotes
@@ -107,6 +115,7 @@ do {
         $startKey = $null
         if ($response.PSObject.Properties.Name -contains 'next_key') {
             $startKey = $response.next_key
+            Write-Host "[DEBUG] response.next_key: $startKey"
         }
 
     } catch {
@@ -117,3 +126,4 @@ do {
 } while ($startKey)
 
 Write-Host "[+] Proceso finalizado"
+
