@@ -19,7 +19,7 @@ $workspaceKey = $ENV:workspaceKey
 
 # Rumble assets export
 $orgId = '73882991-7869-40f0-903a-a617405dca48'
-$pageSize = 500
+$pageSize = 50
 $startKey = $null
 $logType = "RumbleAssets"
 $timeGeneratedField = ""
@@ -29,7 +29,6 @@ $headers = @{
     Accept = 'application/json'
     Authorization = "Bearer $rumbleApiKey"
 }
-
 
 # Helper function to build the authorization signature for the Log Analytics Data Connector API
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
@@ -64,7 +63,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
         -method $method `
         -contentType $contentType `
         -resource $resource
-    
+
     $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
     $headers = @{
         "Authorization" = $signature;
@@ -77,10 +76,14 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     return $response.StatusCode
 }
 
+# Inicializar contadores
+$totalAssets = 0
+$pageCount = 0
+
 # Envío paginado
 do {
-    $uri = "https://console.runzero.com/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products&page_size=1"
-    
+    $uri = "https://console.runzero.com/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products&page_size=$pageSize"
+
     if ($startKey) {
         $uri += "&start_key=$startKey"
     }
@@ -88,13 +91,17 @@ do {
     Write-Host "[DEBUG] Llamando a URI: $uri"
 
     try {
+        $pageCount += 1
+        Write-Host "[DEBUG] Procesando página #$pageCount"
+
         $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
-        $assets = $response.assets  # ✅ Corrección: acceder al array de assets
+        $assets = $response.assets  # ✅ Acceder al array de assets
 
         if (-not $assets) {
-            Write-Host "[+] Se encontraron 0 assets en esta página."
+            Write-Host "[+] Página #$pageCount contiene 0 assets."
         } else {
-            Write-Host "[+] Se encontraron $($assets.Count) assets en esta página."
+            $totalAssets += $assets.Count
+            Write-Host "[+] Página #$pageCount contiene $($assets.Count) assets. Total acumulado: $totalAssets"
         }
 
         # Envío por lotes
@@ -126,7 +133,13 @@ do {
         }
 
         # Paginación
-        $startKey = if ($response.PSObject.Properties.Name -contains 'next_key') { $response.next_key } else { $null }
+        if ($response.PSObject.Properties.Name -contains 'next_key') {
+            $startKey = $response.next_key
+            Write-Host "[DEBUG] Se encontró next_key. Continuando a la siguiente página..."
+        } else {
+            Write-Host "[DEBUG] No hay next_key. Fin de la paginación."
+            $startKey = $null
+        }
 
     } catch {
         Write-Error "❌ ERROR: $($_.Exception.Message)"
@@ -135,4 +148,6 @@ do {
 
 } while ($startKey)
 
+Write-Host "[✔] Total de páginas procesadas: $pageCount"
+Write-Host "[✔] Total de assets recibidos desde RunZero: $totalAssets"
 Write-Host "[+] Proceso finalizado"
