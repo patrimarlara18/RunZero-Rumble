@@ -95,7 +95,17 @@ do {
         Write-Host "[DEBUG] Procesando página #$pageCount"
 
         $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
-        $assets = $response.assets  # ✅ Acceder al array de assets
+        # ✅ Acceder al array de assets (manejo flexible si cambia la forma de la respuesta)
+        if ($response -is [System.Collections.IEnumerable] -and -not ($response -is [System.Collections.IDictionary])) {
+            $assets = $response
+        } elseif ($response.PSObject.Properties.Name -contains 'assets') {
+            $assets = $response.assets
+        } else {
+            Write-Host "[⚠️] No se pudo encontrar 'assets' en la respuesta. Respuesta recibida:"
+            $response | ConvertTo-Json -Depth 5
+            $assets = @()
+        }
+
 
         if (-not $assets) {
             Write-Host "[+] Página #$pageCount contiene 0 assets."
