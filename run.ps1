@@ -79,7 +79,7 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 
 # Envío paginado
 do {
-    $uri = "https://console.runzero.com/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id&page_size=1"
+    $uri = "https://console.runzero.com/api/v1.0/export/org/assets.json?_oid=$orgId&fields=id,created_at,updated_at,first_seen,last_seen,org_name,site_name,alive,scanned,agent_name,sources,detected_by,names,addresses,addresses_extra,domains,type,os_vendor,os_product,os_version,os,hw_vendor,hw_product,hw_version,hw,newest_mac,newest_mac_vendor,newest_mac_age,comments,tags,tag_descriptions,service_ports_tcp,service_ports_udp,service_protocols,service_products&page_size=100"
     
     if ($startKey) {
         $uri += "&start_key=$startKey"
