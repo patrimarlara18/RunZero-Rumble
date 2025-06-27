@@ -94,18 +94,22 @@ do {
         $pageCount += 1
         Write-Host "[DEBUG] Procesando página #$pageCount"
 
-        $response = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
-        # ✅ Acceder al array de assets (manejo flexible si cambia la forma de la respuesta)
-        if ($response -is [System.Collections.IEnumerable] -and -not ($response -is [System.Collections.IDictionary])) {
-            $assets = $response
-        } elseif ($response.PSObject.Properties.Name -contains 'assets') {
-            $assets = $response.assets
-        } else {
-            Write-Host "[⚠️] No se pudo encontrar 'assets' en la respuesta. Respuesta recibida:"
-            $response | ConvertTo-Json -Depth 5
-            $assets = @()
-        }
+        $responseRaw = Invoke-RestMethod -Method 'GET' -Uri $uri -Headers $headers -ErrorAction Stop
 
+        # ✅ Acceder al array de assets (manejo flexible si cambia la forma de la respuesta)
+        if ($responseRaw -is [System.Collections.IEnumerable] -and -not ($responseRaw -is [System.Collections.IDictionary])) {
+            $assets = $responseRaw
+            $nextKey = $null
+        } elseif ($responseRaw.PSObject.Properties.Name -contains 'assets') {
+            $assets = $responseRaw.assets
+            $nextKey = $responseRaw.next_key
+        } else {
+            Write-Host "[⚠️] No se pudo encontrar 'assets' en la respuesta. Intentando decodificar JSON manualmente..."
+            $jsonText = $responseRaw | ConvertTo-Json -Depth 100
+            $responseObj = $jsonText | ConvertFrom-Json -Depth 100
+            $assets = $responseObj.assets
+            $nextKey = $responseObj.next_key
+        }
 
         if (-not $assets) {
             Write-Host "[+] Página #$pageCount contiene 0 assets."
@@ -142,13 +146,20 @@ do {
             Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
         }
 
-        # Paginación
-        if ($response.PSObject.Properties.Name -contains 'next_key') {
-            $startKey = $response.next_key
-            Write-Host "[DEBUG] Se encontró next_key. Continuando a la siguiente página..."
+        # Paginación con verificación de next_key
+        if (-not $nextKey) {
+            # Forzar intento de lectura manual de next_key si no viene directo
+            try {
+                $parsedResponse = ($responseRaw | ConvertTo-Json -Depth 100) | ConvertFrom-Json -Depth 100
+                $startKey = $parsedResponse.next_key
+                Write-Host "[DEBUG] Extrayendo next_key manualmente: $startKey"
+            } catch {
+                $startKey = $null
+                Write-Host "[DEBUG] No se pudo extraer next_key manualmente. Fin de paginación."
+            }
         } else {
-            Write-Host "[DEBUG] No hay next_key. Fin de la paginación."
-            $startKey = $null
+            $startKey = $nextKey
+            Write-Host "[DEBUG] Se encontró next_key. Continuando a la siguiente página..."
         }
 
     } catch {
