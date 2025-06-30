@@ -76,6 +76,17 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
     return $response.StatusCode
 }
 
+# Function to normalize JSON keys to avoid casing collisions
+Function Remove-DuplicateKeysByCasing {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$JsonString
+    )
+
+    $parsed = $JsonString | ConvertFrom-Json -AsHashtable -Depth 100
+    return $parsed
+}
+
 # Inicializar contadores
 $totalAssets = 0
 $pageCount = 0
@@ -94,9 +105,9 @@ do {
         $pageCount += 1
         Write-Host "[DEBUG] Procesando página #$pageCount"
 
-        # Usar Invoke-WebRequest y parsear JSON manualmente
+        # Usar Invoke-WebRequest y normalizar claves para evitar colisiones de casing
         $rawResponse = Invoke-WebRequest -Method 'GET' -Uri $uri -Headers $headers -UseBasicParsing -ErrorAction Stop
-        $responseJson = $rawResponse.Content | ConvertFrom-Json -Depth 100
+        $responseJson = Remove-DuplicateKeysByCasing -JsonString $rawResponse.Content
 
         # ✅ Validación robusta para encontrar los assets
         if ($responseJson.PSObject.Properties.Name -contains 'assets') {
@@ -159,7 +170,6 @@ do {
     }
 
 } while ($startKey)
-
 
 Write-Host "[✔] Total de páginas procesadas: $pageCount"
 Write-Host "[✔] Total de assets recibidos desde RunZero: $totalAssets"
