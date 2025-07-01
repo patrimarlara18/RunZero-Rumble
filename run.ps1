@@ -109,7 +109,7 @@ do {
         $rawResponse = Invoke-WebRequest -Method 'GET' -Uri $uri -Headers $headers -UseBasicParsing -ErrorAction Stop
         $responseJson = Remove-DuplicateKeysByCasing -JsonString $rawResponse.Content
 
-        # ✅ Validación robusta para encontrar los assets (corrige el fallo)
+        # ✅ Validación robusta para encontrar los assets
         if ($responseJson -is [hashtable] -and $responseJson.ContainsKey("assets")) {
             $assets = $responseJson["assets"]
         } elseif ($responseJson.PSObject.Properties.Name -contains 'assets') {
@@ -135,11 +135,18 @@ do {
         $currentSize = 0
 
         foreach ($obj in $assets) {
-            $json = $obj | ConvertTo-Json -Depth 100 -Compress
+            # Convertir a objeto plano
+            $flatObj = [pscustomobject]@{}
+            foreach ($key in $obj.Keys) {
+                $flatObj | Add-Member -NotePropertyName $key -NotePropertyValue $obj[$key]
+            }
+
+            $json = $flatObj | ConvertTo-Json -Depth 100 -Compress
             $size = [System.Text.Encoding]::UTF8.GetByteCount($json)
 
             if (($currentSize + $size) -gt $maxBatchSize) {
                 $jsonBody = "[" + ($currentBatch -join ",") + "]"
+                Write-Host "[DEBUG] JSON enviado (batch):`n$jsonBody"
                 $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
                 Write-Host "    [Batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
                 Start-Sleep -Milliseconds 500
@@ -153,6 +160,7 @@ do {
 
         if ($currentBatch.Count -gt 0) {
             $jsonBody = "[" + ($currentBatch -join ",") + "]"
+            Write-Host "[DEBUG] JSON enviado (último batch):`n$jsonBody"
             $statusCode = Post-LogAnalyticsData -customerId $workspaceId -sharedKey $workspaceKey -body $jsonBody -logType $logType
             Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
         }
