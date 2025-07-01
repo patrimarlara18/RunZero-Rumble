@@ -109,8 +109,10 @@ do {
         $rawResponse = Invoke-WebRequest -Method 'GET' -Uri $uri -Headers $headers -UseBasicParsing -ErrorAction Stop
         $responseJson = Remove-DuplicateKeysByCasing -JsonString $rawResponse.Content
 
-        # ✅ Validación robusta para encontrar los assets
-        if ($responseJson.PSObject.Properties.Name -contains 'assets') {
+        # ✅ Validación robusta para encontrar los assets (corrige el fallo)
+        if ($responseJson -is [hashtable] -and $responseJson.ContainsKey("assets")) {
+            $assets = $responseJson["assets"]
+        } elseif ($responseJson.PSObject.Properties.Name -contains 'assets') {
             $assets = $responseJson.assets
         } elseif ($responseJson -is [System.Collections.IEnumerable] -and -not ($responseJson -is [System.Collections.IDictionary])) {
             $assets = $responseJson
@@ -119,6 +121,7 @@ do {
             $responseJson | ConvertTo-Json -Depth 5
             $assets = @()
         }
+
 
         if (-not $assets) {
             Write-Host "[+] Página #$pageCount contiene 0 assets."
