@@ -122,7 +122,6 @@ do {
             $assets = @()
         }
 
-
         if (-not $assets) {
             Write-Host "[+] Página #$pageCount contiene 0 assets."
         } else {
@@ -158,9 +157,9 @@ do {
             Write-Host "    [Último batch enviado] con $($currentBatch.Count) registros, status: $statusCode"
         }
 
-        # ✅ Paginación robusta: asegurar lectura de next_key si existe
-        if ($responseJson.PSObject.Properties.Name -contains 'next_key') {
-            $startKey = $responseJson.next_key
+        # ✅ Mejora aplicada aquí — paginación robusta
+        if ($responseJson -is [hashtable] -and $responseJson.ContainsKey("next_key")) {
+            $startKey = $responseJson["next_key"]
             Write-Host "[DEBUG] Se encontró next_key. Continuando a la siguiente página..."
         } else {
             Write-Host "[DEBUG] No hay next_key. Fin de la paginación."
